@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon id="plugin.bdix.dhakaflix"
+       name="DhakaFlix"
+       version="0.1.0"
+       provider-name="DhakaFlix Add-on contributors">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="en_GB">Browse and play videos from DhakaFlix</summary>
+    <description lang="en_GB">Browse accessible DhakaFlix directory listings and play video files directly in Kodi.</description>
+    <disclaimer lang="en_GB">Requires network access to the configured portal and media hosts. This is an unofficial add-on.</disclaimer>
+    <platform>all</platform>
+    <license>MIT</license>
+    <language>en</language>
+  </extension>
+</addon>

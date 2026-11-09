@@ -1,0 +1,65 @@
+msgid ""
+msgstr ""
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#30000"
+msgid "Portal"
+msgstr ""
+
+msgctxt "#30001"
+msgid "Portal start URL"
+msgstr ""
+
+msgctxt "#30002"
+msgid "The directory index URL reachable from this Kodi device."
+msgstr ""
+
+msgctxt "#30003"
+msgid "Excluded keywords"
+msgstr ""
+
+msgctxt "#30004"
+msgid "Comma-separated words used to hide matching category folders."
+msgstr ""
+
+msgctxt "#30005"
+msgid "Listing cache duration (seconds)"
+msgstr ""
+
+msgctxt "#30006"
+msgid "Set to 0 to disable listing caching."
+msgstr ""
+
+msgctxt "#30007"
+msgid "Request timeout (seconds)"
+msgstr ""
+
+msgctxt "#30008"
+msgid "Maximum time to wait for a portal directory page."
+msgstr ""
+
+msgctxt "#30009"
+msgid "BDIX source nodes"
+msgstr ""
+
+msgctxt "#30010"
+msgid "DhakaFlix node 7 URL"
+msgstr ""
+
+msgctxt "#30011"
+msgid "DhakaFlix node 9 URL"
+msgstr ""
+
+msgctxt "#30012"
+msgid "DhakaFlix node 12 URL"
+msgstr ""
+
+msgctxt "#30013"
+msgid "DhakaFlix node 14 URL"
+msgstr ""
+
+msgctxt "#30014"
+msgid "Base URL for this DhakaFlix node. Leave blank to disable its categories and search."
+msgstr ""

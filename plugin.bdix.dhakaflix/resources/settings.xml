@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings version="1">
+  <section id="plugin.bdix.dhakaflix">
+    <category id="general" label="30000" help="30000">
+      <group id="portal" label="30000">
+        <setting id="origin_url"
+                 type="string"
+                 label="30001"
+                 help="30002">
+          <level>0</level>
+          <default>http://172.16.50.7/</default>
+          <constraints>
+            <allowempty>false</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>30001</heading>
+          </control>
+        </setting>
+        <setting id="excluded_keywords"
+                 type="string"
+                 label="30003"
+                 help="30004">
+          <level>0</level>
+          <default>game,software,tutorial,other ftp,youtube.com</default>
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="edit" format="string">
+            <heading>30003</heading>
+          </control>
+        </setting>
+        <setting id="cache_ttl"
+                 type="integer"
+                 label="30005"
+                 help="30006">
+          <level>0</level>
+          <default>7200</default>
+          <control type="edit" format="integer">
+            <heading>30005</heading>
+          </control>
+        </setting>
+        <setting id="request_timeout"
+                 type="integer"
+                 label="30007"
+                 help="30008">
+          <level>0</level>
+          <default>20</default>
+          <control type="edit" format="integer">
+            <heading>30007</heading>
+          </control>
+        </setting>
+      </group>
+      <group id="nodes" label="30009">
+        <setting id="server_7_url" type="string" label="30010" help="30014">
+          <level>0</level>
+          <default>http://172.16.50.7/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30010</heading>
+          </control>
+        </setting>
+        <setting id="server_9_url" type="string" label="30011" help="30014">
+          <level>0</level>
+          <default>http://172.16.50.9/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30011</heading>
+          </control>
+        </setting>
+        <setting id="server_12_url" type="string" label="30012" help="30014">
+          <level>0</level>
+          <default>http://172.16.50.12/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30012</heading>
+          </control>
+        </setting>
+        <setting id="server_14_url" type="string" label="30013" help="30014">
+          <level>0</level>
+          <default>http://172.16.50.14/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30013</heading>
+          </control>
+        </setting>
+      </group>
+    </category>
+  </section>
+</settings>
