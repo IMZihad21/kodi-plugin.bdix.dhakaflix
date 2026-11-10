@@ -578,6 +578,11 @@ def _fsync_directory(path):
         pass
 
 
+def _fsync_file(path):
+    with open(path, "r+b") as source:
+        os.fsync(source.fileno())
+
+
 def _fsync_directory_chain(path, root_dir):
     root = os.path.realpath(root_dir)
     current = os.path.realpath(path)
@@ -695,8 +700,7 @@ def _prepare_transaction(library_dir, replacements, deletions):
                     os.fsync(target.fileno())
             if existed:
                 shutil.copy2(target_path, backup_path)
-                with open(backup_path, "rb") as backup:
-                    os.fsync(backup.fileno())
+                _fsync_file(backup_path)
             operations.append(
                 {
                     "action": action,
@@ -716,8 +720,7 @@ def _prepare_transaction(library_dir, replacements, deletions):
             backup_path = os.path.join(transaction_dir, backup_relative)
             if existed:
                 shutil.copy2(target_path, backup_path)
-                with open(backup_path, "rb") as backup:
-                    os.fsync(backup.fileno())
+                _fsync_file(backup_path)
             operations.append(
                 {
                     "action": "delete",
@@ -759,8 +762,7 @@ def _restore_transaction(library_dir, operations, transaction_dir):
             os.close(descriptor)
             try:
                 shutil.copy2(backup_path, temporary_path)
-                with open(temporary_path, "rb") as restored:
-                    os.fsync(restored.fileno())
+                _fsync_file(temporary_path)
                 os.replace(temporary_path, target_path)
                 _fsync_directory(os.path.dirname(target_path))
             except Exception:

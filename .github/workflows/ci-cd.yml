@@ -8,74 +8,105 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  lint:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Lint Python
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          args: check .
+
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests (Python ${{ matrix.python-version }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.11", "3.14"]
+        include:
+          # Python 3.8 is unavailable on the current ubuntu-latest image.
+          - os: ubuntu-22.04
+            python-version: "3.8"
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.15"
+          - os: windows-latest
+            python-version: "3.15"
+          - os: macos-latest
+            python-version: "3.15"
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Run tests
+      - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
       - name: Validate add-on metadata and Python 3.8 compatibility
+        if: matrix.python-version == '3.8'
         run: python tools/package.py --output "${{ runner.temp }}/dhakaflix-validation.zip"
 
   package:
     name: Build installable Kodi ZIP
-    needs: test
+    needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       - name: Build ZIP and SHA-256 checksum
         run: python tools/package.py
 
-      - name: Upload installable package
-        uses: actions/upload-artifact@v4
+      - name: Upload validated package
+        uses: actions/upload-artifact@v7
         with:
           name: dhakaflix-kodi-addon
           path: |
             dist/plugin.bdix.dhakaflix-*.zip
             dist/plugin.bdix.dhakaflix-*.zip.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
   publish:
     name: Publish private GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, package]
+    needs: package
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
-      - name: Build release ZIP and checksum
-        run: python tools/package.py
+      - name: Download validated package
+        uses: actions/download-artifact@v8
+        with:
+          name: dhakaflix-kodi-addon
+          path: dist
 
       - name: Verify tag matches add-on version
         env:

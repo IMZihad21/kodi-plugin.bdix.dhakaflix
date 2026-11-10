@@ -118,8 +118,9 @@ python tools/package.py --output <temporary-directory>/dhakaflix-check.zip
 Detailed operation failures are presented in Kodi dialogs. There is no
 add-on-specific log file.
 
-CI runs the unit suite and package validation on Windows, macOS, and Linux with
-Python 3.8, 3.11, and 3.14.
+CI runs Ruff, the unit suite on Python 3.8, 3.11, and 3.15 on Linux, and the
+unit suite on Python 3.15 on Windows and macOS. Version-tagged releases publish
+the validated ZIP artifact with its SHA-256 checksum.
 
 The package validator checks add-on metadata and Python 3.8 syntax
 compatibility. The intended runtime uses Python 3.8-compatible code.

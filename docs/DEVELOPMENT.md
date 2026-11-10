@@ -46,9 +46,11 @@ Python package is part of the planned add-on runtime.
 
 Create an empty private GitHub repository, initialize and push this project as
 described in the [repository README](../README.md), and enable GitHub Actions
-for the repository. `.github/workflows/ci-cd.yml` runs the standard-library
-test suite on Python 3.8, 3.11, and 3.14, validates the add-on
-metadata/package, and uploads the installable ZIP as a workflow artifact.
+for the repository. `.github/workflows/ci-cd.yml` runs Ruff, tests on Python
+3.8, 3.11, and 3.15 on Linux, and tests Python 3.15 on Windows and macOS. It
+also validates Python 3.8 syntax and add-on metadata, then uploads the
+installable ZIP as a workflow artifact. Version tags publish that validated
+artifact with its SHA-256 checksum.
 
 To publish a private release, make sure the version in `addon.xml` is committed,
 then push the corresponding `vMAJOR.MINOR.PATCH` tag. The workflow checks the
