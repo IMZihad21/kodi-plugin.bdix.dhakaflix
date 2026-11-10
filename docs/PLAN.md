@@ -101,7 +101,8 @@ before requesting or playing them.
 
 ### Phase 0: establish the target — complete
 
-- Target Kodi Matrix (19) or later through the `xbmc.python` 3.0.0 API.
+- Target Kodi Omega 21.3 or later through the `xbmc.python` 3.0.1 API and
+  Python 3.11-compatible syntax.
 - Keep target device/operating-system playback validation as a release gate.
 - Verify that the Kodi device can reach the fixed portal and a sample
   media URL.

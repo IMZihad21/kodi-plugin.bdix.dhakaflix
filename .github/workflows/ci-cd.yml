@@ -25,6 +25,9 @@ jobs:
         with:
           args: check .
 
+      - name: Check Python formatting
+        run: ruff format --check .
+
   test:
     name: Tests (Python ${{ matrix.python-version }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -32,9 +35,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Python 3.8 is unavailable on the current ubuntu-latest image.
-          - os: ubuntu-22.04
-            python-version: "3.8"
           - os: ubuntu-latest
             python-version: "3.11"
           - os: ubuntu-latest
@@ -55,8 +55,8 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
-      - name: Validate add-on metadata and Python 3.8 compatibility
-        if: matrix.python-version == '3.8'
+      - name: Validate add-on metadata and Kodi Python compatibility
+        if: matrix.python-version == '3.11'
         run: python tools/package.py --output "${{ runner.temp }}/dhakaflix-validation.zip"
 
   package:

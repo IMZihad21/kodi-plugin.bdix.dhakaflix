@@ -10,9 +10,10 @@ transcode media.
 The service automatically syncs once on a fresh add-on profile. It retries an
 unsuccessful or incomplete initial sync on later Kodi startups, up to three
 total attempts. Add-on updates do not trigger automatic sync. After the initial
-sync succeeds or retries are exhausted, use **Sync DhakaFlix library now** for
-future syncs. Manual sync has no cooldown but will not overlap an active sync;
-a successful manual sync satisfies the initial sync.
+sync succeeds or retries are exhausted, use **Incremental library sync** to
+check changed folders or **Full library rescan** to revisit the entire selected
+catalog. Manual sync has no cooldown but will not overlap an active sync; a
+successful manual sync satisfies the initial sync.
 
 Generated Movies and TV Shows roots are stored below the add-on's Kodi profile.
 The service registers them in Kodi's `sources.xml`, preserves other sources,
@@ -32,10 +33,12 @@ excluded from library sync. Distinct media URLs are retained, including
 alternate encodes. Kodi fetches media bytes from the original node when
 playing, so the Kodi device must reach each media node.
 
-The next sync run at least seven days after the previous full crawl performs a
-full audit, reclassifies existing entries, removes excluded media, and prunes
-empty managed folders. This interval does not schedule a sync; after the
-initial sync attempts, use **Sync DhakaFlix library now** to start one.
+Incremental sync checks changed folders. A full audit also runs automatically
+when at least seven days have elapsed since the previous full crawl; use **Full
+library rescan** to perform one sooner. Full audits reclassify existing entries,
+remove excluded media, and prune empty managed folders. The interval does not
+schedule a sync; after the initial sync attempts, start either action from the
+home menu.
 
 Library files and sync state are under the add-on profile's `library` folder
 (`special://profile/addon_data/plugin.bdix.dhakaflix/library`). The media and
@@ -43,8 +46,9 @@ directory inventory is stored in `library.sqlite`; sync lifecycle status
 remains in `state.json`. Initial and qualifying seven-day full crawls reconcile
 the entire catalog; intervening syncs use h5ai directory dates to skip
 unchanged subtrees. Since h5ai dates are minute-resolution and not recursive,
-updates inside a skipped subtree may wait until a later full crawl. Crawls are
-bounded by page, depth, media, category, duration, and response-size limits.
+updates inside a skipped subtree may wait until a later full crawl. Crawls have
+no page, depth, media, category, duration, or directory-response-size caps;
+concurrency remains bounded.
 Detailed failures are shown in Kodi error dialogs.
 
 ## Directory browsing

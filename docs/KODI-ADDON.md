@@ -9,9 +9,9 @@ launches `default.py` for browsing and manual controls; `service.py` checks the
 last successful sync at startup and performs due or manually requested
 library synchronization in the background.
 
-The current `addon.xml` requires `xbmc.python` 3.0.0, targeting Kodi Matrix
-(19) or later. Do not lower this requirement without testing the APIs and
-settings schema on the older Kodi release.
+The add-on targets Kodi Omega 21.3 or later, requiring `xbmc.python` 3.0.1 and
+Python 3.11-compatible code. Keep the API requirement and syntax validator in
+sync with the minimum supported Kodi runtime.
 
 ## Request and browse flow
 
@@ -35,17 +35,20 @@ settings schema on the older Kodi release.
    add-on update. Once the initial sync succeeds or retries are exhausted,
    future syncs are manual only. The add-on home menu can queue a manual sync
    at any time except while another sync is running; manual sync has no
-   cooldown. A successful manual sync satisfies the initial sync. A background
-   progress dialog remains visible during the crawl.
+   cooldown. The home menu offers **Incremental library sync** to check changed
+   folders and **Full library rescan** to revisit the selected catalog. A
+   successful manual sync satisfies the initial sync. A background progress
+   dialog remains visible during the crawl.
 2. The sync fetches the fixed portal homepage, discovers current movie
    and TV/series category links, and recursively traverses those h5ai listings
-   with bounded concurrency and page, depth, media, category, and duration
-   limits. Games, software, tutorials, documentaries, wrestling, and awards
-   shows are excluded from library sync. The initial sync visits the complete
-   catalog. Later syncs run a full audit when at least seven days have elapsed
-   since the previous full crawl; the interval does not schedule a sync.
-   Between audits, the add-on compares h5ai folder dates to its SQLite
-   inventory and skips unchanged subtrees.
+   with bounded concurrency and no page, depth, media, category, duration, or
+   directory-response-size caps. Games, software, tutorials, documentaries,
+   wrestling, and awards shows are excluded from library sync. The initial sync
+   visits the complete catalog. Later syncs run a full audit when at least
+   seven days have elapsed since the previous full crawl; the interval does not
+   schedule a sync. **Incremental library sync** uses h5ai folder dates to skip
+   unchanged subtrees; **Full library rescan** always revisits all selected
+   categories and folders.
 3. Every video discovered under a TV/series category is placed under the TV
    Shows root, grouped by inferred series and season folders. Other supported
    videos are placed under Movies. Every distinct URL, including alternate
@@ -173,8 +176,8 @@ configured TTL. Cache only listings and lightweight metadata, not media bytes.
 
 A refresh action should invalidate the current page and reload it. The library
 sync is a distinct, user-triggered/startup background crawl with bounded
-concurrency, page/depth/media/category/duration limits, an 8 MiB directory
-response limit, and complete-versus-partial state. It performs a full crawl
+concurrency and complete-versus-partial state, without crawl count, duration,
+or directory-response-size caps. It performs a full crawl
 when a sync runs after the seven-day interval and uses timestamp-based subtree
 skipping between those audits. After the initial sync/retries, the user must
 manually trigger syncs; the interval does not schedule them.

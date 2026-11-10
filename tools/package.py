@@ -14,8 +14,8 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 ROOT = Path(__file__).resolve().parents[1]
 ADDON_ID = "plugin.bdix.dhakaflix"
 ADDON_DIR = ROOT / ADDON_ID
-PYTHON_API_VERSION = "3.0.0"
-PYTHON_FEATURE_VERSION = (3, 8)
+PYTHON_API_VERSION = "3.0.1"
+PYTHON_FEATURE_VERSION = (3, 11)
 
 
 def validate():

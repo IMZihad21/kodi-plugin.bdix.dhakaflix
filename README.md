@@ -9,7 +9,7 @@ decisions, validation commands, and outstanding release checks.
 
 ## Requirements
 
-- Kodi Matrix (19) or later.
+- Kodi Omega 21.3 or later (Python add-on API 3.0.1; Python 3.11 runtime).
 - The Kodi device must be able to reach the DhakaFlix portal and media nodes
   over your BDIX/LAN connection.
 - Kodi must have writable profile storage for generated library pointers.
@@ -28,7 +28,7 @@ python3 tools/package.py
 The package is created at:
 
 ```text
-dist/plugin.bdix.dhakaflix-0.3.0.zip
+dist/plugin.bdix.dhakaflix-0.4.0.zip
 ```
 
 Copy the ZIP to the Kodi device using a USB drive or a trusted local network
@@ -52,7 +52,7 @@ not upgrade the old ID in place.
 3. Choose **Install from zip file**.
 4. If Kodi asks about an external source, confirm it.
 5. Browse to the USB drive or network share and select
-   `plugin.bdix.dhakaflix-0.3.0.zip`.
+   `plugin.bdix.dhakaflix-0.4.0.zip`.
 6. Wait for Kodi's **DhakaFlix add-on installed** notification.
 7. Open **Add-ons → Video add-ons → DhakaFlix**.
 
@@ -68,6 +68,8 @@ syncs. Once the initial sync completes successfully—or its retry limit is
 exhausted—syncing is manual only. Manual sync has no cooldown, but is ignored
 while another sync is running. A successful manual sync also satisfies the
 fresh-install initial sync.
+The add-on home menu provides incremental sync and an explicit full-catalog
+rescan.
 
 The initial sync discovers movie and TV/series categories from the portal,
 generates local `.strm` files, creates and validates separate Movies and TV
@@ -135,7 +137,7 @@ sign in and have repository access to download private artifacts/releases.
 Transfer the downloaded ZIP to Kodi and follow the install steps above.
 
 The release workflow publishes when you push a tag matching the version in
-`plugin.bdix.dhakaflix/addon.xml`, for example `v0.3.0`. A private GitHub
+`plugin.bdix.dhakaflix/addon.xml`, for example `v0.4.0`. A private GitHub
 release is a download location; it does not automatically install or update
 the add-on on Kodi.
 
@@ -178,8 +180,8 @@ After updating `version` in `plugin.bdix.dhakaflix/addon.xml`, commit and push
 the change, then tag that exact version:
 
 ```sh
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 ## Troubleshooting

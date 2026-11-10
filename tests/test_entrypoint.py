@@ -101,7 +101,7 @@ class _Addon:
     def getAddonInfo(self, name):
         return {
             "name": "DhakaFlix",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "profile": self.values["profile"],
         }[name]
 
@@ -212,7 +212,8 @@ class KodiEntrypointTests(unittest.TestCase):
                 "TV & series categories",
                 "Search movies",
                 "Search TV & series",
-                "Sync DhakaFlix library now",
+                "Incremental library sync",
+                "Full library rescan",
                 "Add-on settings",
             ],
         )
@@ -294,7 +295,19 @@ class KodiEntrypointTests(unittest.TestCase):
     def test_manual_sync_route_queues_service_request(self):
         self._invoke("?action=sync")
         request_path = Path(self.profile.name) / "library" / "sync.request"
-        self.assertTrue(request_path.is_file())
+        self.assertEqual(
+            request_path.read_text(encoding="ascii"),
+            "incremental\n",
+        )
+        self.assertTrue(self.end_calls[-1]["succeeded"])
+
+    def test_full_sync_route_queues_full_request(self):
+        self._invoke("?action=full_sync")
+        request_path = Path(self.profile.name) / "library" / "sync.request"
+        self.assertEqual(
+            request_path.read_text(encoding="ascii"),
+            "full\n",
+        )
         self.assertTrue(self.end_calls[-1]["succeeded"])
 
     def test_portal_url_stays_fixed_while_nodes_are_configurable(self):

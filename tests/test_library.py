@@ -96,9 +96,22 @@ class LibraryPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             self.assertTrue(enqueue_manual_sync(directory))
             self.assertFalse(enqueue_manual_sync(directory))
-            self.assertTrue(Path(directory, "sync.request").is_file())
+            self.assertEqual(
+                Path(directory, "sync.request").read_text(encoding="ascii"),
+                "incremental\n",
+            )
 
-    def test_registration_rejects_conflicting_dhakaflix_source_without_overwriting(self):
+    def test_full_sync_request_is_queued_as_full(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertTrue(enqueue_manual_sync(directory, full_crawl=True))
+            self.assertEqual(
+                Path(directory, "sync.request").read_text(encoding="ascii"),
+                "full\n",
+            )
+
+    def test_registration_rejects_conflicting_dhakaflix_source_without_overwriting(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as directory:
             sources_path = os.path.join(directory, "sources.xml")
             original = (

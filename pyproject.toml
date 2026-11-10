@@ -1,0 +1,15 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["plugin.bdix.dhakaflix", "tests", "tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

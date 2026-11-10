@@ -6,12 +6,11 @@ from urllib.parse import quote, unquote, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from resources.lib.cache import CacheError
+from resources.lib.config import parse_integer_setting
 from resources.lib.parser import Entry, classify_file, parse_directory
 from resources.lib.urls import URLValidationError, http_origin, normalize_http_url
 
-MAX_DIRECTORY_BYTES = 8 * 1024 * 1024
 MAX_SEARCH_BYTES = 4 * 1024 * 1024
-_READ_CHUNK_BYTES = 64 * 1024
 
 
 class PortalError(RuntimeError):
@@ -30,7 +29,9 @@ class _ValidatedRedirectHandler(HTTPRedirectHandler):
             target_origin = http_origin(target)
             request_origin = http_origin(request.full_url)
             if target_origin not in self.allowed_origins:
-                raise URLValidationError("redirect destination is not an approved server")
+                raise URLValidationError(
+                    "redirect destination is not an approved server"
+                )
             if self.same_origin_only and target_origin != request_origin:
                 raise URLValidationError("cross-origin redirects are not allowed")
         except URLValidationError as error:
@@ -70,7 +71,13 @@ class PortalClient:
                 raise PortalError(f"Invalid approved server URL: {error}") from error
         self.allowed_origins = frozenset(configured_origins)
         self.excluded_keywords = tuple(excluded_keywords)
-        self.timeout = min(max(int(timeout), 3), 60)
+        self.timeout = parse_integer_setting(
+            timeout,
+            name="Request timeout",
+            default=20,
+            minimum=3,
+            maximum=60,
+        )
         self.user_agent = user_agent
         self.warning_callback = warning_callback or (lambda message: None)
         self.opener = build_opener(_ValidatedRedirectHandler(self.allowed_origins))
@@ -110,24 +117,7 @@ class PortalClient:
                     raise PortalError(
                         f"Expected an HTML directory page, received {content_type}"
                     )
-                content_length = response.headers.get("Content-Length")
-                if content_length is not None:
-                    try:
-                        if int(content_length) > MAX_DIRECTORY_BYTES:
-                            raise PortalError("Directory response exceeded the 8 MiB size limit")
-                    except ValueError as error:
-                        raise PortalError("Portal returned an invalid Content-Length") from error
-                chunks = []
-                total_bytes = 0
-                while True:
-                    chunk = response.read(min(_READ_CHUNK_BYTES, MAX_DIRECTORY_BYTES + 1 - total_bytes))
-                    if not chunk:
-                        break
-                    total_bytes += len(chunk)
-                    if total_bytes > MAX_DIRECTORY_BYTES:
-                        raise PortalError("Directory response exceeded the 8 MiB size limit")
-                    chunks.append(chunk)
-                raw_content = b"".join(chunks)
+                raw_content = response.read()
                 charset = response.headers.get_content_charset() or "utf-8"
         except HTTPError as error:
             error.close()
@@ -269,8 +259,7 @@ class PortalClient:
                 f"Portal returned an invalid directory listing: {error}"
             ) from error
         entries = [
-            entry for entry in entries
-            if http_origin(entry.url) in self.allowed_origins
+            entry for entry in entries if http_origin(entry.url) in self.allowed_origins
         ]
         if cache is not None:
             try:

@@ -45,8 +45,9 @@ def ensure_library_paths(paths):
             )
 
 
-def enqueue_manual_sync(library_dir):
+def enqueue_manual_sync(library_dir, full_crawl=False):
     request_path = os.path.join(library_dir, "sync.request")
+    request_type = "full" if full_crawl else "incremental"
     try:
         os.makedirs(library_dir, exist_ok=True)
         descriptor = os.open(
@@ -54,7 +55,7 @@ def enqueue_manual_sync(library_dir):
             os.O_CREAT | os.O_EXCL | os.O_WRONLY,
         )
         with os.fdopen(descriptor, "w", encoding="ascii") as request:
-            request.write("requested\n")
+            request.write(request_type + "\n")
             request.flush()
             os.fsync(request.fileno())
     except FileExistsError:
@@ -225,7 +226,8 @@ def register_sources(sources_xml_path, movies_path, tv_path):
             if original is not None:
                 if not _same_file_snapshot(sources_xml_path, original, metadata):
                     raise SourceRegistrationError(
-                        "Kodi sources.xml changed during registration; no changes were applied"
+                        "Kodi sources.xml changed during registration; "
+                        "no changes were applied"
                     )
                 backup_path = sources_xml_path + ".dhakaflix.bak"
                 _atomic_write(
@@ -236,12 +238,14 @@ def register_sources(sources_xml_path, movies_path, tv_path):
                 )
                 if not _same_file_snapshot(sources_xml_path, original, metadata):
                     raise SourceRegistrationError(
-                        "Kodi sources.xml changed before registration could be committed"
+                        "Kodi sources.xml changed before registration could be "
+                        "committed"
                     )
                 os.chmod(temporary_path, stat.S_IMODE(metadata.st_mode))
             elif os.path.exists(sources_xml_path):
                 raise SourceRegistrationError(
-                    "Kodi sources.xml was created during registration; no changes were applied"
+                    "Kodi sources.xml was created during registration; "
+                    "no changes were applied"
                 )
             os.replace(temporary_path, sources_xml_path)
             if os.name != "nt":

@@ -11,7 +11,9 @@ class URLValidationError(ValueError):
 def http_origin(url):
     parts = urlsplit(url)
     scheme = parts.scheme.casefold()
-    port = parts.port or (80 if scheme == "http" else 443 if scheme == "https" else None)
+    port = parts.port or (
+        80 if scheme == "http" else 443 if scheme == "https" else None
+    )
     return scheme, (parts.hostname or "").casefold(), port
 
 
@@ -54,7 +56,7 @@ def normalize_http_url(url):
             or not all(char.isalnum() or char == "-" for char in label)
             for label in labels
         ):
-            raise URLValidationError("URL host is malformed")
+            raise URLValidationError("URL host is malformed") from None
     netloc = normalized_host
     if port is not None:
         netloc = f"{netloc}:{port}"

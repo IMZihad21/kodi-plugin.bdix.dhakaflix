@@ -29,7 +29,7 @@ IMAGE_EXTENSIONS = frozenset((".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"))
 SUBTITLE_EXTENSIONS = frozenset((".ass", ".srt", ".ssa", ".sub", ".vtt"))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Entry:
     name: str
     url: str
@@ -88,8 +88,7 @@ class _H5AIParser(HTMLParser):
         classes = attributes.get("class", "").casefold().split()
         identifier = attributes.get("id", "").casefold()
         if identifier in ("fallback", "fb", "fb-list", "h5ai") or any(
-            value in ("fb-i", "fb-n", "fb-d", "fb-s", "fb-list")
-            for value in classes
+            value in ("fb-i", "fb-n", "fb-d", "fb-s", "fb-list") for value in classes
         ):
             self.has_listing_marker = True
         if tag == "tr":
@@ -205,13 +204,13 @@ def parse_directory(html_text, base_url, excluded_keywords=(), strict=False):
             "too many requests",
         )
         if any(marker in page_text for marker in failure_markers):
-            raise ValueError("The response looks like an access, challenge, or error page")
-        if (
-            not parser.rows
-            and not any(candidates)
-            and not parser.has_listing_marker
-        ):
-            raise ValueError("The response does not contain a recognized directory listing")
+            raise ValueError(
+                "The response looks like an access, challenge, or error page"
+            )
+        if not parser.rows and not any(candidates) and not parser.has_listing_marker:
+            raise ValueError(
+                "The response does not contain a recognized directory listing"
+            )
     excluded = tuple(word.casefold() for word in excluded_keywords if word)
     for entry in candidates:
         if entry is None or entry.url in seen:

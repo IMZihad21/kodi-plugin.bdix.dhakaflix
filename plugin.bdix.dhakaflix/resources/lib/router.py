@@ -10,7 +10,7 @@ class RouteError(ValueError):
     """Raised when a Kodi plugin route is malformed or unsafe."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Route:
     action: str
     target_url: str = ""
@@ -27,6 +27,7 @@ def plugin_url(base_url, action, target_url=None, media_type=None):
         "catalog",
         "search",
         "sync",
+        "full_sync",
     ):
         raise RouteError(f"Unsupported action: {action}")
     params = {"action": action}
@@ -51,6 +52,7 @@ def parse_route(base_url, query_string):
         "catalog",
         "search",
         "sync",
+        "full_sync",
     ):
         raise RouteError(f"Unsupported action: {action}")
 

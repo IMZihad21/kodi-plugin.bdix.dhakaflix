@@ -101,10 +101,14 @@ class PortalClientTests(unittest.TestCase):
         self.assertIn("film.mkv", html_text)
         self.assertEqual(final_url, self.base_url + "/root/")
 
-    def test_rejects_directory_pages_larger_than_eight_megabytes(self):
+    def test_rejects_invalid_request_timeout(self):
+        with self.assertRaisesRegex(ValueError, "between 3 and 60"):
+            PortalClient(self.base_url + "/", timeout=2)
+
+    def test_fetches_directory_pages_larger_than_eight_megabytes(self):
         client = PortalClient(self.base_url + "/")
-        with self.assertRaisesRegex(PortalError, "8 MiB size limit"):
-            client.fetch_html(self.base_url + "/large/")
+        html_text, _ = client.fetch_html(self.base_url + "/large/")
+        self.assertIn("film.mkv", html_text)
 
     def test_reports_http_and_content_type_errors(self):
         client = PortalClient(self.base_url + "/")

@@ -8,9 +8,10 @@ listings into Kodi's local video library using `.strm` files. A stream file
 contains the original media URL; media bytes are not downloaded, proxied, or
 transcoded.
 
-The add-on targets Kodi Matrix (19) and later through the `xbmc.python`
-3.0.0 API. The Kodi service and source-registration behavior still need
-validation on actual supported Kodi devices before release.
+The add-on targets Kodi Omega 21.3 and later through the `xbmc.python`
+3.0.1 API, using Python 3.11-compatible code. The Kodi service and
+source-registration behavior still need validation on actual supported Kodi
+devices before release.
 
 ## Agreed behavior
 
@@ -30,6 +31,9 @@ validation on actual supported Kodi devices before release.
   incremental behavior; it does not schedule a sync. Between full crawls,
   compare h5ai directory dates with the SQLite index and skip subtrees whose
   displayed date is unchanged.
+- Provide separate manual incremental-sync and full-rescan actions. Incremental
+  sync checks changed folders; full rescan revisits every selected category and
+  folder regardless of the seven-day interval.
 - Reclassification after output or category-policy changes occurs during the
   next full crawl; after initial startup retries, the user must trigger syncs.
 - Automatically sync once for a fresh add-on profile. Retry an unsuccessful
@@ -61,7 +65,7 @@ validation on actual supported Kodi devices before release.
   processing, source registration, sync lifecycle, scan/clean sequencing, and
   user notifications.
 - `plugin.bdix.dhakaflix/resources/lib/sync.py`: Kodi-independent category
-  discovery, bounded full/incremental crawls, media classification, SQLite
+  discovery, full/incremental crawls, media classification, SQLite
   index updates, `.strm` creation, and safe pruning.
 - `plugin.bdix.dhakaflix/resources/lib/library_index.py`: SQLite inventory,
   legacy manifest migration, and transactional snapshot updates.
@@ -84,9 +88,9 @@ with the host Python interpreter.
 
 ## Safety and operational details
 
-- Crawls are bounded by page, depth, media, category, and duration limits.
-  Directory responses are limited to 8 MiB; concurrency, URL validation, and
-  shutdown cancellation are also bounded.
+- Crawls have no page, depth, media, category, duration, or directory-response
+  size caps. Concurrency, URL validation, and shutdown cancellation remain
+  bounded.
 - The h5ai `Last modified` value is minute-resolution and reflects the
   directory entry itself, not the newest change anywhere below it. Incremental
   sync is therefore best-effort: a change below a skipped unchanged directory
@@ -118,12 +122,11 @@ python tools/package.py --output <temporary-directory>/dhakaflix-check.zip
 Detailed operation failures are presented in Kodi dialogs. There is no
 add-on-specific log file.
 
-CI runs Ruff, the unit suite on Python 3.8, 3.11, and 3.15 on Linux, and the
-unit suite on Python 3.15 on Windows and macOS. Version-tagged releases publish
-the validated ZIP artifact with its SHA-256 checksum.
-
-The package validator checks add-on metadata and Python 3.8 syntax
-compatibility. The intended runtime uses Python 3.8-compatible code.
+CI runs configured Ruff linting and formatting checks, the unit suite on Python
+3.11 and 3.15 on Linux, and Python 3.15 on Windows and macOS. The package
+validator checks add-on metadata and Python 3.11 syntax compatibility.
+Version-tagged releases publish the validated ZIP artifact with its SHA-256
+checksum.
 
 ## Release validation still required
 

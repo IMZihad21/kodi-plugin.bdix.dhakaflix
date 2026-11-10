@@ -13,13 +13,11 @@ from package import ADDON_ID, build, validate
 
 
 class PackagingTests(unittest.TestCase):
-    def test_metadata_validates_for_declared_kodi_python(self):
-        self.assertEqual(validate(), "0.3.0")
+    def test_metadata_validates_for_kodi_21_python_api(self):
+        self.assertEqual(validate(), "0.4.0")
 
     def test_library_sync_settings_default_to_movies_only(self):
-        settings_path = (
-            ROOT / ADDON_ID / "resources" / "settings.xml"
-        )
+        settings_path = ROOT / ADDON_ID / "resources" / "settings.xml"
         settings = ET.parse(settings_path).getroot()
         defaults = {
             setting.attrib["id"]: setting.findtext("default")
@@ -51,10 +49,7 @@ class PackagingTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            {
-                group.attrib["label"]
-                for group in settings.findall(".//group")
-            },
+            {group.attrib["label"] for group in settings.findall(".//group")},
             {"30015", "30018"},
         )
 
@@ -71,18 +66,16 @@ class PackagingTests(unittest.TestCase):
                 self.assertIn(ADDON_ID + "/default.py", names)
                 self.assertIn(ADDON_ID + "/service.py", names)
                 self.assertIn(ADDON_ID + "/resources/lib/library_index.py", names)
+                self.assertIn(ADDON_ID + "/resources/lib/sync/__init__.py", names)
+                self.assertIn(ADDON_ID + "/resources/lib/sync/runner.py", names)
                 self.assertIn(ADDON_ID + "/resources/icon.png", names)
                 self.assertNotIn(
                     ADDON_ID + "/resources/lib/addon_logging.py",
                     names,
                 )
                 self.assertIn(
-                    b"MAX_CRAWL_MEDIA",
-                    archive.read(ADDON_ID + "/resources/lib/sync.py"),
-                )
-                self.assertIn(
                     b"FULL_CRAWL_INTERVAL",
-                    archive.read(ADDON_ID + "/resources/lib/sync.py"),
+                    archive.read(ADDON_ID + "/resources/lib/sync/runner.py"),
                 )
                 self.assertTrue(all(name.startswith(ADDON_ID + "/") for name in names))
                 self.assertTrue(all(not name.endswith("/") for name in names))

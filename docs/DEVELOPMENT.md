@@ -2,12 +2,12 @@
 
 ## Prerequisites
 
-- Python 3 for parser and packaging utilities.
+- Python 3.11 or later for parser and packaging utilities.
 - Kodi installed on at least one target device for integration testing.
 - Network access from the target Kodi device to the fixed DhakaFlix portal,
   source servers, and direct media URLs.
-- Kodi Matrix (19) or later; the add-on currently declares `xbmc.python`
-  version `3.0.0`.
+- Kodi Omega 21.3 or later; the add-on declares `xbmc.python` version `3.0.1`
+  and uses Python 3.11-compatible syntax.
 
 No separate HTTP server, database, Docker runtime, Go toolchain, or third-party
 Python package is part of the planned add-on runtime.
@@ -46,9 +46,9 @@ Python package is part of the planned add-on runtime.
 
 Create an empty private GitHub repository, initialize and push this project as
 described in the [repository README](../README.md), and enable GitHub Actions
-for the repository. `.github/workflows/ci-cd.yml` runs Ruff, tests on Python
-3.8, 3.11, and 3.15 on Linux, and tests Python 3.15 on Windows and macOS. It
-also validates Python 3.8 syntax and add-on metadata, then uploads the
+for the repository. `.github/workflows/ci-cd.yml` runs configured Ruff linting,
+tests on Python 3.11 and 3.15 on Linux, and Python 3.15 on Windows and macOS. It also
+validates Kodi 21.3 metadata and Python 3.11 syntax, then uploads the
 installable ZIP as a workflow artifact. Version tags publish that validated
 artifact with its SHA-256 checksum.
 

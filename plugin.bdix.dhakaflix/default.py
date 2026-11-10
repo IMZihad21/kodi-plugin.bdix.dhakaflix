@@ -11,8 +11,10 @@ import xbmcaddon
 import xbmcgui
 import xbmcplugin
 import xbmcvfs
+
 from resources.lib.cache import ListingCache
 from resources.lib.catalog import NODES, PORTAL_URL, categories, search_nodes
+from resources.lib.config import parse_integer_setting
 from resources.lib.library import (
     SyncRequestError,
     enqueue_manual_sync,
@@ -51,26 +53,33 @@ def _settings():
         try:
             node_urls[node_id] = normalize_http_url(value)
         except URLValidationError as error:
-            raise ValueError(f"Invalid DhakaFlix node {node_id} URL: {error}") from error
+            raise ValueError(
+                f"Invalid DhakaFlix node {node_id} URL: {error}"
+            ) from error
 
     excluded_keywords = [
         word.strip().casefold()
         for word in ADDON.getSetting("excluded_keywords").split(",")
         if word.strip()
     ]
-    try:
-        cache_ttl = int(ADDON.getSetting("cache_ttl") or "7200")
-    except ValueError:
-        cache_ttl = 7200
-    try:
-        timeout = int(ADDON.getSetting("request_timeout") or "20")
-    except ValueError:
-        timeout = 20
+    cache_ttl = parse_integer_setting(
+        ADDON.getSetting("cache_ttl"),
+        name="Listing cache duration",
+        default=7200,
+        minimum=0,
+    )
+    timeout = parse_integer_setting(
+        ADDON.getSetting("request_timeout"),
+        name="Request timeout",
+        default=20,
+        minimum=3,
+        maximum=60,
+    )
     return (
         PORTAL_URL,
         excluded_keywords,
-        max(0, cache_ttl),
-        min(max(timeout, 3), 60),
+        cache_ttl,
+        timeout,
         node_urls,
     )
 
@@ -206,9 +215,10 @@ def _render_home(origin_url):
         ),
         _menu_item("Search movies", _route_url("search", media_type="movie")),
         _menu_item("Search TV & series", _route_url("search", media_type="series")),
+        _menu_item("Incremental library sync", _route_url("sync"), is_folder=False),
         _menu_item(
-            "Sync DhakaFlix library now",
-            _route_url("sync"),
+            "Full library rescan",
+            _route_url("full_sync"),
             is_folder=False,
         ),
         _menu_item("Add-on settings", _route_url("settings"), is_folder=False),
@@ -317,11 +327,21 @@ def main():
         elif route.action == "settings":
             ADDON.openSettings()
             xbmcplugin.endOfDirectory(HANDLE, succeeded=True, cacheToDisc=False)
-        elif route.action == "sync":
+        elif route.action in ("sync", "full_sync"):
             profile = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
-            queued = enqueue_manual_sync(library_paths(profile)["state"])
+            full_crawl = route.action == "full_sync"
+            queued = enqueue_manual_sync(
+                library_paths(profile)["state"],
+                full_crawl=full_crawl,
+            )
             _notify(
-                "Library sync queued" if queued else "A library sync is already queued"
+                (
+                    "Full library rescan queued"
+                    if full_crawl
+                    else "Incremental library sync queued"
+                )
+                if queued
+                else "A library sync is already queued"
             )
             xbmcplugin.endOfDirectory(HANDLE, succeeded=queued, cacheToDisc=False)
         elif route.action == "play":
@@ -351,9 +371,7 @@ def main():
             f"Unexpected add-on error: {error}\n{traceback.format_exc()}",
             xbmc.LOGERROR,
         )
-        _notify_error(
-            "An unexpected error occurred. Check the Kodi log for details."
-        )
+        _notify_error("An unexpected error occurred. Check the Kodi log for details.")
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False, cacheToDisc=False)
 
 

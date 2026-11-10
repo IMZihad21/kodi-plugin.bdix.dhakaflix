@@ -20,7 +20,7 @@ class _Addon:
     def getAddonInfo(self, name):
         return {
             "name": "DhakaFlix",
-            "version": "0.3.0",
+            "version": "0.4.0",
             "profile": "profile",
         }[name]
 
@@ -143,6 +143,7 @@ class ServiceTests(unittest.TestCase):
                 monitor,
                 self.progress_dialogs[1],
                 frozenset({"movie"}),
+                full_crawl=None,
             )
             self.assertTrue(all(dialog.closed for dialog in self.progress_dialogs))
 
@@ -183,12 +184,71 @@ class ServiceTests(unittest.TestCase):
                 "complete",
             )
 
+    def test_full_manual_sync_reaches_sync_runner(self):
+        with tempfile.TemporaryDirectory() as library_dir:
+            self.service._client = mock.Mock(return_value=object())
+            self.service._perform_sync = mock.Mock(return_value=True)
+
+            self.service._run_sync_request(
+                library_dir,
+                {},
+                _Monitor(),
+                full_crawl=True,
+            )
+
+            self.assertEqual(
+                self.service._perform_sync.call_args.kwargs["full_crawl"],
+                True,
+            )
+
+    def test_full_sync_request_is_claimed_and_run_as_full(self):
+        with tempfile.TemporaryDirectory() as library_dir:
+            request_path = Path(library_dir, "sync.request")
+            request_path.write_text("full\n", encoding="ascii")
+            self.service._run_sync_request = mock.Mock()
+
+            self.service._process_sync_request(library_dir, {}, _Monitor())
+
+            self.service._run_sync_request.assert_called_once_with(
+                library_dir,
+                {},
+                mock.ANY,
+                full_crawl=True,
+            )
+            self.assertFalse(request_path.exists())
+
+    def test_invalid_sync_request_is_reported_and_discarded(self):
+        with tempfile.TemporaryDirectory() as library_dir:
+            request_path = Path(library_dir, "sync.request")
+            request_path.write_text("invalid\n", encoding="ascii")
+
+            self.service._process_sync_request(library_dir, {}, _Monitor())
+
+            self.assertFalse(request_path.exists())
+            self.assertFalse(Path(str(request_path) + ".processing").exists())
+            self.assertIn("Unknown manual sync request type", self.error_dialogs[-1][1])
+
+    def test_incremental_sync_request_keeps_scheduled_audit_behavior(self):
+        with tempfile.TemporaryDirectory() as library_dir:
+            request_path = Path(library_dir, "sync.request")
+            request_path.write_text("incremental\n", encoding="ascii")
+            self.service._run_sync_request = mock.Mock()
+
+            self.service._process_sync_request(library_dir, {}, _Monitor())
+
+            self.service._run_sync_request.assert_called_once_with(
+                library_dir,
+                {},
+                mock.ANY,
+                full_crawl=None,
+            )
+
     def test_request_queued_during_a_sync_runs_after_current_sync(self):
         with tempfile.TemporaryDirectory() as library_dir:
             request_path = Path(library_dir, "sync.request")
             self.service._client = mock.Mock(return_value=object())
 
-            def queue_another_request(*args):
+            def queue_another_request(*args, **kwargs):
                 request_path.touch()
 
             self.service._perform_sync = mock.Mock(side_effect=queue_another_request)
@@ -207,8 +267,16 @@ class ServiceTests(unittest.TestCase):
                 },
             )
 
-            def finish_crawl(client, path, cancelled, progress, media_types):
+            def finish_crawl(
+                client,
+                path,
+                cancelled,
+                progress,
+                media_types,
+                full_crawl=None,
+            ):
                 self.assertEqual(media_types, frozenset({"movie"}))
+                self.assertIsNone(full_crawl)
                 progress(5, 12, "English Movies")
                 return SyncResult(True, 10, 2, 5, (), 0)
 
@@ -402,9 +470,7 @@ class ServiceTests(unittest.TestCase):
             self.assertTrue(Path(paths["movies"]).is_dir())
             self.assertTrue(Path(paths["tv"]).is_dir())
             self.assertTrue(sources_path.is_file())
-            self.assertFalse(
-                self.service._ensure_sources(library_dir, paths, state)
-            )
+            self.assertFalse(self.service._ensure_sources(library_dir, paths, state))
 
     def test_registered_source_refresh_resumes_after_restart_without_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -420,7 +486,8 @@ class ServiceTests(unittest.TestCase):
                 paths["tv"],
             )
             self.service.xbmcvfs.translatePath = lambda value: (
-                str(sources_path) if value == "special://profile/sources.xml"
+                str(sources_path)
+                if value == "special://profile/sources.xml"
                 else str(profile_dir)
             )
             library_dir = paths["state"]

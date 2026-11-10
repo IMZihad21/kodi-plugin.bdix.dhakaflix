@@ -73,7 +73,9 @@ class DirectoryParserTests(unittest.TestCase):
         source = """
         <div id="fallback"><table>
           <tr><td class="fb-i"><img src="folder.png"></td>
-          <td class="fb-n"><a href="The%20Forbidden%20Kingdom%20(2008)/">The Forbidden Kingdom (2008)</a></td>
+          <td class="fb-n"><a href="The%20Forbidden%20Kingdom%20(2008)/">
+            The Forbidden Kingdom (2008)
+          </a></td>
           <td class="fb-d">2026-01-01</td><td class="fb-s"></td></tr>
         </table></div>
         """

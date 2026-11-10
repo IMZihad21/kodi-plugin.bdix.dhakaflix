@@ -28,6 +28,13 @@ class RouterTests(unittest.TestCase):
         with self.assertRaises(RouteError):
             parse_route("plugin://plugin.bdix.dhakaflix/", "?action=execute")
 
+    def test_accepts_full_sync_route(self):
+        route = parse_route(
+            "plugin://plugin.bdix.dhakaflix/",
+            "?action=full_sync",
+        )
+        self.assertEqual(route.action, "full_sync")
+
     def test_round_trip_catalog_and_search_routes(self):
         base = "plugin://plugin.bdix.dhakaflix/"
         catalog = plugin_url(base, "catalog", media_type="series")

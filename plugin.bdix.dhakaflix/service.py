@@ -12,7 +12,9 @@ import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcvfs
+
 from resources.lib.catalog import NODE_URLS, PORTAL_URL
+from resources.lib.config import parse_integer_setting
 from resources.lib.library import (
     SourceRegistrationError,
     ensure_library_paths,
@@ -60,7 +62,9 @@ def _quarantine_state(path, reason):
     try:
         os.replace(path, destination)
     except OSError as error:
-        raise RuntimeError(f"Unable to quarantine corrupt sync state: {error}") from error
+        raise RuntimeError(
+            f"Unable to quarantine corrupt sync state: {error}"
+        ) from error
     _notify_error(
         "DhakaFlix sync state was invalid and has been reset",
         f"The previous state was preserved at {destination}. {reason}",
@@ -185,11 +189,13 @@ class ServiceMonitor(xbmc.Monitor):
 
 
 def _client():
-    try:
-        timeout = int(ADDON.getSetting("request_timeout") or "20")
-    except ValueError:
-        timeout = 20
-    timeout = min(max(timeout, 3), 60)
+    timeout = parse_integer_setting(
+        ADDON.getSetting("request_timeout"),
+        name="Request timeout",
+        default=20,
+        minimum=3,
+        maximum=60,
+    )
     excluded_keywords = tuple(
         word.strip().casefold()
         for word in ADDON.getSetting("excluded_keywords").split(",")
@@ -212,7 +218,9 @@ def _sync_media_types():
     if ADDON.getSetting("sync_series").casefold() == "true":
         media_types.add("series")
     if not media_types:
-        raise ValueError("Enable movie sync, TV series sync, or both in add-on settings")
+        raise ValueError(
+            "Enable movie sync, TV series sync, or both in add-on settings"
+        )
     return frozenset(media_types)
 
 
@@ -231,7 +239,9 @@ def _resume_pending_refresh(library_dir, paths, resume_existing=False):
         if refresh.get("phase") == "clean":
             state.pop("library_refresh", None)
             _write_state(library_dir, state)
-            _notify("DhakaFlix sources refreshed; Kodi-wide library cleaning was skipped")
+            _notify(
+                "DhakaFlix sources refreshed; Kodi-wide library cleaning was skipped"
+            )
             return
         if refresh.get("active"):
             refresh.setdefault("queue", []).insert(0, refresh.pop("active"))
@@ -273,6 +283,7 @@ def _perform_sync(
     monitor,
     progress_dialog,
     media_types=None,
+    full_crawl=None,
 ):
     state = _read_state(library_dir)
     registration_changed = bool(state.get("registration_restart_pending"))
@@ -324,6 +335,7 @@ def _perform_sync(
             media_types=(
                 media_types if media_types is not None else _sync_media_types()
             ),
+            full_crawl=full_crawl,
         )
     except SyncCancelled:
         _notify("DhakaFlix sync stopped because Kodi is shutting down")
@@ -459,7 +471,13 @@ def _recover_interrupted_sync(library_dir):
         _notify("Recovered an interrupted DhakaFlix sync")
 
 
-def _run_sync_request(library_dir, paths, monitor, automatic=False):
+def _run_sync_request(
+    library_dir,
+    paths,
+    monitor,
+    automatic=False,
+    full_crawl=None,
+):
     progress_dialog = None
     sync_claimed = False
     started_at = None
@@ -493,7 +511,13 @@ def _run_sync_request(library_dir, paths, monitor, automatic=False):
         progress_dialog = xbmcgui.DialogProgressBG()
         progress_dialog.create("DhakaFlix library sync", "Preparing catalog sync")
         succeeded = _perform_sync(
-            library_dir, paths, _client(), monitor, progress_dialog, media_types
+            library_dir,
+            paths,
+            _client(),
+            monitor,
+            progress_dialog,
+            media_types,
+            full_crawl=full_crawl,
         )
     except Exception as error:  # noqa: BLE001
         _report_service_error("DhakaFlix sync request failed", error)
@@ -537,7 +561,19 @@ def _process_sync_request(library_dir, paths, monitor):
     except OSError as error:
         _notify_error("Unable to claim manual sync request", str(error))
         return
-    _run_sync_request(library_dir, paths, monitor)
+    try:
+        with open(processing_path, encoding="ascii") as request:
+            request_type = request.read().strip()
+        if request_type not in ("incremental", "full", "requested"):
+            raise ValueError(f"Unknown manual sync request type: {request_type!r}")
+        _run_sync_request(
+            library_dir,
+            paths,
+            monitor,
+            full_crawl=True if request_type == "full" else None,
+        )
+    except (OSError, ValueError) as error:
+        _notify_error("Unable to read manual sync request", str(error))
     try:
         if monitor.abortRequested() and not os.path.exists(request_path):
             os.replace(processing_path, request_path)
@@ -566,7 +602,7 @@ def main():
         else:
             try:
                 _resume_pending_refresh(library_dir, paths, resume_existing=True)
-            # Keep unexpected Kodi refresh errors visible without terminating the service.
+            # Keep unexpected refresh errors visible without terminating the service.
             except Exception as error:  # noqa: BLE001
                 _report_service_error("Unable to resume Kodi library refresh", error)
             state = _read_state(library_dir)

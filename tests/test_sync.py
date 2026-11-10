@@ -227,7 +227,7 @@ class CategoryDiscoveryTests(unittest.TestCase):
         )
 
     def test_crawl_has_no_page_count_limit(self):
-        page_total = 20001
+        page_total = 50001
 
         class ManyPagesClient(_FakeClient):
             def listing(self, url, cache, refresh=False):
@@ -248,8 +248,29 @@ class CategoryDiscoveryTests(unittest.TestCase):
         self.assertEqual(page_count, page_total + 5)
         self.assertFalse(errors)
 
+    def test_crawl_has_no_category_count_limit(self):
+        category_total = 257
+
+        class ManyCategoriesClient(_FakeClient):
+            def fetch_html(self, url):
+                links = "".join(
+                    f'<a href="/movies/{number}/">Movie collection {number}</a>'
+                    for number in range(category_total)
+                )
+                return links, url
+
+            def listing(self, url, cache, refresh=False):
+                return []
+
+        categories, _, page_count, errors, _, _ = crawl_catalog(
+            ManyCategoriesClient(), "http://127.0.0.1:8000/"
+        )
+        self.assertEqual(len(categories), category_total)
+        self.assertEqual(page_count, category_total)
+        self.assertFalse(errors)
+
     def test_crawl_has_no_folder_depth_limit(self):
-        depth = 40
+        depth = 64
 
         class DeepTreeClient(_FakeClient):
             def listing(self, url, cache, refresh=False):
@@ -594,6 +615,47 @@ class SyncRunTests(unittest.TestCase):
                 state = json.load(source)
             self.assertTrue(state["last_result"]["full_crawl"])
 
+    def test_manual_full_crawl_rescans_recently_audited_catalog(self):
+        client = _FakeClient()
+        for url in client.pages:
+            _set_directory_modified(client, url, "2026-01-01 10:00")
+
+        with tempfile.TemporaryDirectory() as library_dir:
+            first = run_sync(client, library_dir)
+            self.assertTrue(first.complete)
+            result = run_sync(client, library_dir, full_crawl=True)
+
+            self.assertTrue(result.complete)
+            self.assertEqual(result.page_count, 7)
+            with open(
+                os.path.join(library_dir, "state.json"), encoding="utf-8"
+            ) as source:
+                state = json.load(source)
+            self.assertTrue(state["last_result"]["full_crawl"])
+
+    def test_explicit_incremental_sync_does_not_run_due_full_audit(self):
+        client = _FakeClient()
+        for url in client.pages:
+            _set_directory_modified(client, url, "2026-01-01 10:00")
+
+        with tempfile.TemporaryDirectory() as library_dir:
+            first = run_sync(client, library_dir)
+            self.assertTrue(first.complete)
+            state_path = os.path.join(library_dir, "state.json")
+            with open(state_path, encoding="utf-8") as source:
+                state = json.load(source)
+            state["last_full_crawl"] = time.time() - FULL_CRAWL_INTERVAL
+            with open(state_path, "w", encoding="utf-8") as target:
+                json.dump(state, target)
+
+            result = run_sync(client, library_dir, full_crawl=False)
+
+            self.assertTrue(result.complete)
+            self.assertEqual(result.page_count, 2)
+            with open(state_path, encoding="utf-8") as source:
+                state = json.load(source)
+            self.assertFalse(state["last_result"]["full_crawl"])
+
     def test_atomic_write_supports_a_relative_filename(self):
         with tempfile.TemporaryDirectory() as directory:
             previous_directory = os.getcwd()
@@ -750,7 +812,9 @@ class SyncRunTests(unittest.TestCase):
             )
 
             self.assertTrue(movies_only.complete)
-            self.assertEqual((movies_only.movie_count, movies_only.episode_count), (1, 0))
+            self.assertEqual(
+                (movies_only.movie_count, movies_only.episode_count), (1, 0)
+            )
             self.assertEqual(movies_only.pruned_count, 1)
             self.assertEqual(len(list(Path(library_dir).rglob("*.strm"))), 1)
 
@@ -761,7 +825,9 @@ class SyncRunTests(unittest.TestCase):
             )
 
             self.assertTrue(series_only.complete)
-            self.assertEqual((series_only.movie_count, series_only.episode_count), (0, 1))
+            self.assertEqual(
+                (series_only.movie_count, series_only.episode_count), (0, 1)
+            )
             self.assertEqual(series_only.pruned_count, 1)
             self.assertEqual(len(list(Path(library_dir).rglob("*.strm"))), 1)
 
