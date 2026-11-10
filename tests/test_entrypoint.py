@@ -1,5 +1,5 @@
-import json
 import importlib.util
+import json
 import sys
 import tempfile
 import threading
@@ -7,6 +7,7 @@ import types
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 from urllib.parse import urlencode
 
@@ -92,7 +93,7 @@ class _Keyboard:
 
 
 class _Addon:
-    values = {}
+    values: ClassVar[dict] = {}
 
     def __init__(self, id):
         self.id = id
@@ -100,7 +101,7 @@ class _Addon:
     def getAddonInfo(self, name):
         return {
             "name": "DhakaFlix",
-            "version": "0.1.0",
+            "version": "0.3.0",
             "profile": self.values["profile"],
         }[name]
 
@@ -117,7 +118,7 @@ class KodiEntrypointTests(unittest.TestCase):
         cls.server = HTTPServer(("127.0.0.1", 0), _Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
-        cls.origin = "http://127.0.0.1:{}".format(cls.server.server_port)
+        cls.origin = f"http://127.0.0.1:{cls.server.server_port}"
 
     @classmethod
     def tearDownClass(cls):
@@ -129,24 +130,15 @@ class KodiEntrypointTests(unittest.TestCase):
         self.profile = tempfile.TemporaryDirectory()
         _Addon.values = {
             "profile": self.profile.name,
-            "origin_url": self.origin + "/",
             "excluded_keywords": "",
             "cache_ttl": "0",
             "request_timeout": "3",
-            "server_7_url": "http://172.16.50.7/",
-            "server_9_url": "http://172.16.50.9/",
-            "server_12_url": "http://172.16.50.12/",
-            "server_14_url": "http://172.16.50.14/",
         }
         self.items = []
         self.resolved = []
         self.end_calls = []
-        self.logs = []
+        self.error_dialogs = []
         xbmc = types.ModuleType("xbmc")
-        xbmc.LOGINFO = 1
-        xbmc.LOGWARNING = 2
-        xbmc.LOGERROR = 3
-        xbmc.log = lambda *args: self.logs.append(args)
         xbmc.Keyboard = _Keyboard
         xbmcaddon = types.ModuleType("xbmcaddon")
         xbmcaddon.Addon = _Addon
@@ -155,12 +147,14 @@ class KodiEntrypointTests(unittest.TestCase):
         xbmcgui.Keyboard = _Keyboard
         xbmcgui.Dialog = lambda: types.SimpleNamespace(
             notification=lambda *args: None,
-            ok=lambda *args: None,
+            ok=lambda *args: self.error_dialogs.append(args),
         )
         xbmcplugin = types.ModuleType("xbmcplugin")
         xbmcplugin.setContent = lambda *args: None
         xbmcplugin.addDirectoryItem = lambda **kwargs: self.items.append(kwargs) or True
-        xbmcplugin.endOfDirectory = lambda *args, **kwargs: self.end_calls.append(kwargs)
+        xbmcplugin.endOfDirectory = lambda *args, **kwargs: self.end_calls.append(
+            kwargs
+        )
         xbmcplugin.setResolvedUrl = lambda *args: self.resolved.append(args)
         xbmcvfs = types.ModuleType("xbmcvfs")
         xbmcvfs.translatePath = lambda value: value
@@ -178,26 +172,31 @@ class KodiEntrypointTests(unittest.TestCase):
     def tearDown(self):
         self.profile.cleanup()
 
-    def _invoke(self, query):
+    def _invoke(self, query, node_urls=None):
         argv = ["plugin://plugin.bdix.dhakaflix/", "1", query]
         with mock.patch.object(sys, "argv", argv):
             source_path = ADDON_DIR / "default.py"
-            spec = importlib.util.spec_from_file_location("dhakaflix_test_entry", source_path)
+            spec = importlib.util.spec_from_file_location(
+                "dhakaflix_test_entry", source_path
+            )
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+            if node_urls is not None:
+                module.NODE_URLS = node_urls
             module.main()
+            return module
 
     def test_home_displays_multi_node_catalog_and_search(self):
         self._invoke("")
-        self.assertFalse(self.logs, self.logs)
         self.assertEqual(
             [item["listitem"].label for item in self.items],
             [
-                "Browse configured portal",
+                "Browse DhakaFlix portal",
                 "Movie categories",
                 "TV & series categories",
                 "Search movies",
                 "Search TV & series",
+                "Sync DhakaFlix library now",
                 "Add-on settings",
             ],
         )
@@ -206,8 +205,10 @@ class KodiEntrypointTests(unittest.TestCase):
         self.assertTrue(self.end_calls[-1]["succeeded"])
 
     def test_browse_route_lists_folders_and_playable_video(self):
-        self._invoke("?" + urlencode({"action": "browse", "url": self.origin + "/"}))
-        self.assertFalse(self.logs, self.logs)
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": self.origin + "/"}),
+            node_urls={key: self.origin + "/" for key in ("7", "10", "12", "14")},
+        )
         self.assertEqual(len(self.items), 2)
         self.assertEqual(
             [item["listitem"].label for item in self.items],
@@ -215,9 +216,12 @@ class KodiEntrypointTests(unittest.TestCase):
         )
         self.assertTrue(self.items[0]["isFolder"])
         self.assertFalse(self.items[1]["isFolder"])
-        self.assertEqual(self.items[1]["listitem"].subtitles, [
-            self.origin + "/Film.en.srt",
-        ])
+        self.assertEqual(
+            self.items[1]["listitem"].subtitles,
+            [
+                self.origin + "/Film.en.srt",
+            ],
+        )
         self.assertEqual(
             self.items[1]["listitem"].art["thumb"],
             self.origin + "/cover.jpg",
@@ -229,26 +233,26 @@ class KodiEntrypointTests(unittest.TestCase):
 
     def test_movie_catalog_routes_to_multiple_nodes(self):
         self._invoke("?action=catalog&type=movie")
-        self.assertFalse(self.logs, self.logs)
         routes = [item["url"] for item in self.items]
         self.assertGreaterEqual(len(routes), 10)
         self.assertTrue(any("172.16.50.7" in route for route in routes))
         self.assertTrue(any("172.16.50.14" in route for route in routes))
         self.assertTrue(all(item["isFolder"] for item in self.items))
 
-    def test_movie_search_uses_configured_nodes_and_lists_direct_playback(self):
+    def test_movie_search_uses_fixed_node_urls_and_lists_direct_playback(self):
         _Keyboard.confirmed = True
         _Keyboard.text = "Film"
         self.addCleanup(setattr, _Keyboard, "confirmed", False)
         self.addCleanup(setattr, _Keyboard, "text", "")
-        _Addon.values.update({
-            "server_7_url": self.origin + "/",
-            "server_9_url": "",
-            "server_12_url": "",
-            "server_14_url": "",
-        })
-        self._invoke("?action=search&type=movie")
-        self.assertFalse(self.logs, self.logs)
+        self._invoke(
+            "?action=search&type=movie",
+            node_urls={
+                "7": self.origin + "/",
+                "10": "",
+                "12": "",
+                "14": "",
+            },
+        )
         self.assertEqual(len(self.items), 1)
         self.assertEqual(self.items[0]["listitem"].label, "Film.mkv")
         self.assertFalse(self.items[0]["isFolder"])
@@ -260,14 +264,37 @@ class KodiEntrypointTests(unittest.TestCase):
 
     def test_play_route_resolves_direct_media_url(self):
         target = self.origin + "/film%20(2026).mkv"
-        self._invoke("?" + urlencode({"action": "play", "url": target}))
-        self.assertFalse(self.logs, self.logs)
+        self._invoke(
+            "?" + urlencode({"action": "play", "url": target}),
+            node_urls={key: self.origin + "/" for key in ("7", "10", "12", "14")},
+        )
         self.assertEqual(len(self.resolved), 1)
         handle, succeeded, item = self.resolved[0]
         self.assertEqual(handle, 1)
         self.assertTrue(succeeded)
         self.assertEqual(item.path, target)
         self.assertEqual(item.info["video"]["title"], "film (2026).mkv")
+
+    def test_manual_sync_route_queues_service_request(self):
+        self._invoke("?action=sync")
+        request_path = Path(self.profile.name) / "library" / "sync.request"
+        self.assertTrue(request_path.is_file())
+        self.assertTrue(self.end_calls[-1]["succeeded"])
+
+    def test_portal_url_is_not_user_configurable(self):
+        module = self._invoke("")
+        origin_url, _, _, _, node_urls = module._settings()
+
+        self.assertEqual(origin_url, "http://172.16.50.7/")
+        self.assertEqual(
+            node_urls,
+            {
+                "7": "http://172.16.50.7/",
+                "10": "http://172.16.50.10/",
+                "12": "http://172.16.50.12/",
+                "14": "http://172.16.50.14/",
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -7,9 +7,9 @@ import hashlib
 import os
 import tempfile
 import xml.etree.ElementTree as ET
+from contextlib import suppress
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
-
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON_ID = "plugin.bdix.dhakaflix"
@@ -21,7 +21,7 @@ PYTHON_FEATURE_VERSION = (3, 8)
 def validate():
     addon_xml = ADDON_DIR / "addon.xml"
     if not addon_xml.is_file():
-        raise ValueError("Missing {}".format(addon_xml))
+        raise ValueError(f"Missing {addon_xml}")
     addon = ET.parse(str(addon_xml)).getroot()
     if addon.tag != "addon" or addon.attrib.get("id") != ADDON_ID:
         raise ValueError("addon.xml has an invalid add-on ID")
@@ -35,15 +35,29 @@ def validate():
         for dependency in addon.findall("./requires/import")
     }
     if dependencies.get("xbmc.python") != PYTHON_API_VERSION:
-        raise ValueError("addon.xml must require xbmc.python {}".format(PYTHON_API_VERSION))
+        raise ValueError(f"addon.xml must require xbmc.python {PYTHON_API_VERSION}")
 
     plugin_extensions = addon.findall("./extension[@point='xbmc.python.pluginsource']")
-    if not any(extension.attrib.get("library") == "default.py" for extension in plugin_extensions):
+    if not any(
+        extension.attrib.get("library") == "default.py"
+        for extension in plugin_extensions
+    ):
         raise ValueError("addon.xml must register default.py as a Kodi plugin source")
+    service_extensions = addon.findall("./extension[@point='xbmc.service']")
+    if not any(
+        extension.attrib.get("library") == "service.py"
+        for extension in service_extensions
+    ):
+        raise ValueError("addon.xml must register service.py as a Kodi service")
     if not (ADDON_DIR / "default.py").is_file():
         raise ValueError("Missing add-on entry point")
+    if not (ADDON_DIR / "service.py").is_file():
+        raise ValueError("Missing add-on service")
     if not (ADDON_DIR / "LICENSE").is_file():
         raise ValueError("Missing add-on license")
+    icon = addon.find("./extension[@point='xbmc.addon.metadata']/assets/icon")
+    if icon is None or not icon.text or not (ADDON_DIR / icon.text).is_file():
+        raise ValueError("addon.xml must reference an existing icon asset")
 
     settings_path = ADDON_DIR / "resources" / "settings.xml"
     settings = ET.parse(str(settings_path)).getroot()
@@ -60,7 +74,7 @@ def validate():
             raise ValueError("Kodi settings contain a missing or duplicate setting ID")
         setting_ids.add(setting_id)
         if not setting.attrib.get("label") or setting.find("control") is None:
-            raise ValueError("Kodi setting {} is missing a label or control".format(setting_id))
+            raise ValueError(f"Kodi setting {setting_id} is missing a label or control")
 
     for source in ADDON_DIR.rglob("*.py"):
         if "__pycache__" in source.parts:
@@ -74,11 +88,8 @@ def validate():
             )
         except SyntaxError as error:
             raise ValueError(
-                "{} is not compatible with Python {}.{}".format(
-                    source.relative_to(ADDON_DIR),
-                    PYTHON_FEATURE_VERSION[0],
-                    PYTHON_FEATURE_VERSION[1],
-                )
+                f"{source.relative_to(ADDON_DIR)} is not compatible with Python "
+                f"{PYTHON_FEATURE_VERSION[0]}.{PYTHON_FEATURE_VERSION[1]}"
             ) from error
     return version
 
@@ -87,7 +98,7 @@ def _write_checksum(output_path):
     digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
     checksum_path = output_path.with_suffix(output_path.suffix + ".sha256")
     checksum_path.write_text(
-        "{}  {}\n".format(digest, output_path.name),
+        f"{digest}  {output_path.name}\n",
         encoding="ascii",
     )
     return checksum_path
@@ -106,7 +117,11 @@ def build(output_path):
     try:
         with ZipFile(temporary_path, "w", ZIP_DEFLATED, compresslevel=9) as archive:
             for path in sorted(ADDON_DIR.rglob("*")):
-                if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
+                if (
+                    not path.is_file()
+                    or "__pycache__" in path.parts
+                    or path.suffix == ".pyc"
+                ):
                     continue
                 relative_path = Path(ADDON_ID) / path.relative_to(ADDON_DIR)
                 info = ZipInfo(str(relative_path).replace(os.sep, "/"))
@@ -122,18 +137,17 @@ def build(output_path):
         with ZipFile(temporary_path, "r") as archive:
             corrupt_entry = archive.testzip()
             if corrupt_entry:
-                raise ValueError("Invalid ZIP member: {}".format(corrupt_entry))
+                raise ValueError(f"Invalid ZIP member: {corrupt_entry}")
             names = archive.namelist()
             if not names or any(not name.startswith(ADDON_ID + "/") for name in names):
                 raise ValueError("ZIP must contain only the add-on ID directory")
             if ADDON_ID + "/addon.xml" not in names:
                 raise ValueError("ZIP is missing addon.xml")
+        os.chmod(temporary_path, 0o644)
         os.replace(temporary_path, str(output_path))
     except Exception:
-        try:
+        with suppress(FileNotFoundError):
             os.remove(temporary_path)
-        except FileNotFoundError:
-            pass
         raise
     checksum_path = _write_checksum(output_path)
     return version, output_path, checksum_path
@@ -144,10 +158,10 @@ def main():
     parser.add_argument("--output", type=Path, help="ZIP output path")
     arguments = parser.parse_args()
     version = validate()
-    output_path = arguments.output or ROOT / "dist" / "{}-{}.zip".format(ADDON_ID, version)
+    output_path = arguments.output or ROOT / "dist" / f"{ADDON_ID}-{version}.zip"
     version, output_path, checksum_path = build(output_path)
-    print("Packaged {} version {} at {}".format(ADDON_ID, version, output_path))
-    print("SHA-256 checksum: {}".format(checksum_path))
+    print(f"Packaged {ADDON_ID} version {version} at {output_path}")
+    print(f"SHA-256 checksum: {checksum_path}")
 
 
 if __name__ == "__main__":

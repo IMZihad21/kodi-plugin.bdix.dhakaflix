@@ -4,8 +4,8 @@
 
 - Python 3 for parser and packaging utilities.
 - Kodi installed on at least one target device for integration testing.
-- Network access from the target Kodi device to the configured portal and
-  direct media URLs.
+- Network access from the target Kodi device to the fixed DhakaFlix portal,
+  source servers, and direct media URLs.
 - Kodi Matrix (19) or later; the add-on currently declares `xbmc.python`
   version `3.0.0`.
 
@@ -14,7 +14,8 @@ Python package is part of the planned add-on runtime.
 
 ## Suggested local workflow
 
-1. Keep pure parsing and URL-resolution code separate from Kodi APIs.
+1. Keep portal discovery, crawling, classification, the SQLite index, and `.strm`
+   generation independent of Kodi imports.
 2. Save representative portal responses as HTML fixtures, with private or
    user-specific data removed.
 3. Run automated tests using the host Python interpreter:
@@ -25,8 +26,15 @@ Python package is part of the planned add-on runtime.
 
 4. Install the add-on directory into Kodi's `addons` directory for rapid
    development, then restart Kodi or reload add-ons.
-5. Inspect Kodi's log after browsing, refreshing, and playing a sample item.
-6. Build the installable ZIP:
+5. Test first-run source registration and restart notification on the target
+   Kodi profile. Verify existing sources are preserved and the `.dhakaflix.bak`
+   backup is usable.
+6. Configure Movies and TV Shows content types/scrapers in Kodi, enable the
+   add-on's source-configuration confirmation setting, then test startup and
+   manual sync.
+7. Inspect Kodi's log after syncing, scanning, cleaning, browsing, and playing
+   a sample item.
+8. Build the installable ZIP:
 
    ```sh
    python3 tools/package.py
@@ -40,8 +48,8 @@ Python package is part of the planned add-on runtime.
 Create an empty private GitHub repository, initialize and push this project as
 described in the [repository README](../README.md), and enable GitHub Actions
 for the repository. `.github/workflows/ci-cd.yml` runs the standard-library
-test suite on Python 3.8, 3.11, and 3.14, validates the add-on metadata/package,
-and uploads the installable ZIP as a workflow artifact.
+test suite on Python 3.8, 3.11, and 3.14, validates the add-on
+metadata/package, and uploads the installable ZIP as a workflow artifact.
 
 To publish a private release, make sure the version in `addon.xml` is committed,
 then push the corresponding `vMAJOR.MINOR.PATCH` tag. The workflow checks the
@@ -66,6 +74,14 @@ Test portal parsing and URL resolution against fixtures:
   titles.
 - Unsupported schemes, fragments, malformed rows, and empty pages.
 - Keyword exclusions and common video extension classification.
+- Homepage category discovery, excluded non-media categories, private-node
+  restrictions, and duplicate links.
+- Crawl failures, cancellation, deep trees, large directory pages, timestamp-
+  based subtree skipping, full-audit scheduling, and incomplete-run safety.
+- Movie/episode classification, alternate URLs, filename collisions, and
+  generated `.strm` contents.
+- Safe stale-file pruning, last-success semantics, and Kodi source XML
+  preservation/idempotency/restart detection.
 
 ### Integration tests
 
@@ -76,16 +92,29 @@ live portal.
 ### Kodi manual checks
 
 - Add-on installs and opens without a traceback.
-- Home categories and nested folders are navigable with a remote/keyboard.
-- Back navigation and refresh behave correctly.
-- A sample video starts, seeks, and stops on supported clients.
-- Missing artwork or subtitles does not prevent playback.
-- An unavailable source produces a useful notification and Kodi log entry.
+- First install registers both roots and notifies that Kodi must restart.
+- Restart loads the roots; one-time source content/scraper configuration works.
+- A fresh profile gets one automatic initial sync with at most three startup
+  attempts; add-on updates do not auto-sync. Manual sync has no cooldown and
+  never overlaps an active sync.
+- Large crawls keep Kodi usable and report progress, completion, and failures.
+- Incremental index migrations preserve prior media paths; full audits
+  reconcile changes missed by h5ai's non-recursive, minute-resolution dates.
+- Partial node failure never prunes files or advances last-success state.
+- Successful sync discovers current homepage links, creates movie/episode
+  `.strm` entries, and retains alternate URLs.
+- Stale files are removed only from add-on-managed roots; Kodi's global clean
+  is deliberately not requested, so stale Kodi database entries can remain.
+- Kodi library scans produce usable Movies and TV Shows entries and playback
+  reaches the original media nodes.
+- Existing browsing, back navigation, refresh, artwork, and subtitles continue
+  to work.
 
 ## Packaging
 
 The final ZIP should contain one top-level add-on directory named to match the
-add-on ID, including `addon.xml`, Python modules, resources, and artwork.
+add-on ID, including `addon.xml`, plugin and service entry points, Python
+modules, resources, and the DhakaFlix icon.
 Exclude test fixtures, development notes, bytecode caches, and local settings.
 
 Before release, verify the `addon.xml` version, Kodi Python API requirement,
@@ -95,8 +124,16 @@ validated in a real Kodi runtime or against the live private portal.
 
 ## Troubleshooting
 
-- **Categories do not appear:** inspect the Kodi log, confirm the portal URL
-  from the Kodi device, and compare the response with parser fixtures.
+- **Sync did not start:** inspect last-success and failure state in Kodi's
+  add-on profile and confirm the Kodi device can reach the portal homepage.
+- **Sources need a restart:** restart Kodi after the add-on reports a
+  `sources.xml` change; Kodi reads source configuration at startup.
+- **Library remains empty:** confirm that each source's Movies/TV Shows
+  content, scraper, and recursive scanning options were configured in Kodi,
+  then enable the add-on confirmation setting and run a manual sync.
+- **Sync failed or is incomplete:** read the detailed Kodi error dialog for
+  the failing URL, filesystem path, or network error. Retry after correcting the
+  reported issue.
 - **Folders show no entries:** verify the fetched page is an actual directory
   listing and not an error page or redirect target.
 - **Playback fails after selecting a file:** open the resolved media URL from

@@ -4,37 +4,47 @@ from urllib.parse import urljoin
 
 from resources.lib.urls import normalize_http_url
 
+PORTAL_URL = "http://172.16.50.7/"
 
 NODES = {
     "7": {
-        "setting": "server_7_url",
+        "url": "http://172.16.50.7/",
         "server_name": "DHAKA-FLIX-7",
         "search_types": ("movie",),
     },
-    "9": {
-        "setting": "server_9_url",
-        "server_name": "DHAKA-FLIX-9",
+    "10": {
+        "url": "http://172.16.50.10/",
+        "server_name": "DHAKA-FLIX-10",
         "search_types": ("series",),
     },
     "12": {
-        "setting": "server_12_url",
+        "url": "http://172.16.50.12/",
         "server_name": "DHAKA-FLIX-12",
         "search_types": ("series",),
     },
     "14": {
-        "setting": "server_14_url",
+        "url": "http://172.16.50.14/",
         "server_name": "DHAKA-FLIX-14",
         "search_types": ("movie", "series"),
     },
 }
+NODE_URLS = {node_id: node["url"] for node_id, node in NODES.items()}
 
 _CATEGORIES = {
     "movie": (
         ("English Movies (720p)", "7", "DHAKA-FLIX-7/English Movies/"),
         ("English Movies (1080p)", "14", "DHAKA-FLIX-14/English Movies (1080p)/"),
         ("Hindi Movies", "14", "DHAKA-FLIX-14/Hindi Movies/"),
-        ("South Indian Movies", "14", "DHAKA-FLIX-14/SOUTH INDIAN MOVIES/South Movies/"),
-        ("South Indian Hindi Dubbed", "14", "DHAKA-FLIX-14/SOUTH INDIAN MOVIES/Hindi Dubbed/"),
+        (
+            "South Indian Movies",
+            "14",
+            "DHAKA-FLIX-14/SOUTH INDIAN MOVIES/South Movies/",
+        ),
+        (
+            "South Indian Hindi Dubbed",
+            "14",
+            "DHAKA-FLIX-14/SOUTH INDIAN MOVIES/Hindi Dubbed/",
+        ),
         ("West Bengal Bangla Movies", "7", "DHAKA-FLIX-7/Kolkata Bangla Movies/"),
         ("Animation Movies", "14", "DHAKA-FLIX-14/Animation Movies/"),
         ("Animation Movies (1080p)", "14", "DHAKA-FLIX-14/Animation Movies (1080p)/"),
@@ -45,11 +55,10 @@ _CATEGORIES = {
     "series": (
         ("TV & Web Series", "12", "DHAKA-FLIX-12/TV-WEB-Series/"),
         ("Korean TV & Web Series", "14", "DHAKA-FLIX-14/KOREAN TV & WEB Series/"),
-        ("Anime & Cartoon Series", "9", "DHAKA-FLIX-9/Anime & Cartoon TV Series/"),
-        ("Documentary", "9", "DHAKA-FLIX-9/Documentary/"),
-        ("WWE Wrestling", "9", "DHAKA-FLIX-9/WWE & AEW Wrestling/WWE Wrestling/"),
-        ("AEW Wrestling", "9", "DHAKA-FLIX-9/WWE & AEW Wrestling/AEW Wrestling/"),
-        ("Awards & TV Shows", "9", "DHAKA-FLIX-9/Awards & TV Shows/"),
+        ("Anime & Cartoon Series", "10", "DHAKA-FLIX-10/Anime & Cartoon TV Series/"),
+        ("Documentary", "10", "DHAKA-FLIX-10/Documentary/"),
+        ("WWE & AEW Wrestling", "10", "DHAKA-FLIX-10/WWE & AEW Wrestling/"),
+        ("Awards & TV Shows", "10", "DHAKA-FLIX-10/Awards & TV Shows/"),
     ),
 }
 
@@ -64,7 +73,9 @@ def categories(media_type, node_urls):
         if not base_url:
             continue
         base_url = normalize_http_url(base_url)
-        result.append((label, normalize_http_url(urljoin(base_url.rstrip("/") + "/", path))))
+        result.append(
+            (label, normalize_http_url(urljoin(base_url.rstrip("/") + "/", path)))
+        )
     return result
 
 

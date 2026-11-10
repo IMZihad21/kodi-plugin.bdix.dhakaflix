@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import time
+from contextlib import suppress
 from hashlib import sha256
 
 from resources.lib.parser import Entry
@@ -27,12 +28,12 @@ class ListingCache:
     def get(self, url, now=None):
         path = self._path(url)
         try:
-            with open(path, "r", encoding="utf-8") as cache_file:
+            with open(path, encoding="utf-8") as cache_file:
                 payload = json.load(cache_file)
         except FileNotFoundError:
             return None
         except (OSError, ValueError) as error:
-            raise CacheError("Unable to read listing cache: {}".format(error)) from error
+            raise CacheError(f"Unable to read listing cache: {error}") from error
 
         if not isinstance(payload, dict) or payload.get("url") != url:
             raise CacheError("Listing cache entry is invalid")
@@ -47,12 +48,12 @@ class ListingCache:
             except FileNotFoundError:
                 pass
             except OSError as error:
-                raise CacheError("Unable to expire listing cache: {}".format(error)) from error
+                raise CacheError(f"Unable to expire listing cache: {error}") from error
             return None
         try:
             return [Entry.from_dict(entry) for entry in entries]
-        except ValueError as error:
-            raise CacheError("Listing cache entry is invalid: {}".format(error)) from error
+        except (TypeError, ValueError) as error:
+            raise CacheError(f"Listing cache entry is invalid: {error}") from error
 
     def put(self, url, entries, now=None):
         if self.ttl_seconds == 0:
@@ -69,20 +70,20 @@ class ListingCache:
             )
             try:
                 with os.fdopen(descriptor, "w", encoding="utf-8") as cache_file:
-                    json.dump(payload, cache_file, ensure_ascii=False, separators=(",", ":"))
+                    json.dump(
+                        payload, cache_file, ensure_ascii=False, separators=(",", ":")
+                    )
                     cache_file.flush()
                     os.fsync(cache_file.fileno())
                 destination = self._path(url)
                 os.replace(temporary_path, destination)
                 self._prune(destination)
             except Exception:
-                try:
+                with suppress(FileNotFoundError):
                     os.remove(temporary_path)
-                except FileNotFoundError:
-                    pass
                 raise
         except (OSError, TypeError, ValueError) as error:
-            raise CacheError("Unable to write listing cache: {}".format(error)) from error
+            raise CacheError(f"Unable to write listing cache: {error}") from error
 
     def _prune(self, keep_path):
         cache_paths = [
@@ -99,8 +100,6 @@ class ListingCache:
                 break
             if path == keep_path:
                 continue
-            try:
+            with suppress(FileNotFoundError):
                 os.remove(path)
-            except FileNotFoundError:
-                pass
             remaining -= 1

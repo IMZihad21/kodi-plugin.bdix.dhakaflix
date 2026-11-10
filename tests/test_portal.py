@@ -53,8 +53,10 @@ class _Handler(BaseHTTPRequestHandler):
             body = (
                 b'<tr><td class="fb-i"><img src="file.png"></td>'
                 b'<td class="fb-n"><a href="film.mkv">Film.mkv</a></td>'
-                b"<td class=\"fb-d\"></td><td class=\"fb-s\"></td></tr>"
+                b'<td class="fb-d"></td><td class="fb-s"></td></tr>'
             )
+            if self.path == "/large/":
+                body = b" " * (8 * 1024 * 1024 + 1) + body
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -71,7 +73,7 @@ class PortalClientTests(unittest.TestCase):
         cls.server = HTTPServer(("127.0.0.1", 0), _Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
-        cls.base_url = "http://127.0.0.1:{}".format(cls.server.server_port)
+        cls.base_url = f"http://127.0.0.1:{cls.server.server_port}"
 
     @classmethod
     def tearDownClass(cls):
@@ -84,6 +86,7 @@ class PortalClientTests(unittest.TestCase):
         client = PortalClient(self.base_url + "/")
         with self.subTest("fetch"):
             import tempfile
+
             with tempfile.TemporaryDirectory() as directory:
                 cache = ListingCache(directory)
                 first = client.listing(self.base_url + "/root/", cache)
@@ -92,9 +95,21 @@ class PortalClientTests(unittest.TestCase):
         self.assertEqual(len(first), 1)
         self.assertEqual(_Handler.requests, 1)
 
+    def test_fetches_html_for_portal_discovery(self):
+        client = PortalClient(self.base_url + "/")
+        html_text, final_url = client.fetch_html(self.base_url + "/root/")
+        self.assertIn("film.mkv", html_text)
+        self.assertEqual(final_url, self.base_url + "/root/")
+
+    def test_rejects_directory_pages_larger_than_eight_megabytes(self):
+        client = PortalClient(self.base_url + "/")
+        with self.assertRaisesRegex(PortalError, "8 MiB size limit"):
+            client.fetch_html(self.base_url + "/large/")
+
     def test_reports_http_and_content_type_errors(self):
         client = PortalClient(self.base_url + "/")
         import tempfile
+
         with tempfile.TemporaryDirectory() as directory:
             cache = ListingCache(directory)
             with self.assertRaisesRegex(PortalError, "HTTP 404"):

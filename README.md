@@ -1,14 +1,18 @@
-# DhakaFlix Kodi add-on
+# DhakaFlix Kodi add-on and library sync
 
-Browse DhakaFlix directory listings and play the original video URLs directly
-in Kodi. This add-on runs inside Kodi: it does not need a separate server,
-proxy, account, or transcoder.
+Sync DhakaFlix movies and TV episodes into Kodi's video library using local
+`.strm` pointers to the original media URLs. The add-on also retains its
+on-demand browser. It does not download, proxy, or transcode video content.
+
+See [PROJECT-HANDOFF.md](PROJECT-HANDOFF.md) for architecture, behavior
+decisions, validation commands, and outstanding release checks.
 
 ## Requirements
 
 - Kodi Matrix (19) or later.
 - The Kodi device must be able to reach the DhakaFlix portal and media nodes
   over your BDIX/LAN connection.
+- Kodi must have writable profile storage for generated library pointers.
 
 ## Install in Kodi using the ZIP
 
@@ -24,7 +28,7 @@ python3 tools/package.py
 The package is created at:
 
 ```text
-dist/plugin.bdix.dhakaflix-0.1.0.zip
+dist/plugin.bdix.dhakaflix-0.3.0.zip
 ```
 
 Copy the ZIP to the Kodi device using a USB drive or a trusted local network
@@ -48,31 +52,88 @@ not upgrade the old ID in place.
 3. Choose **Install from zip file**.
 4. If Kodi asks about an external source, confirm it.
 5. Browse to the USB drive or network share and select
-   `plugin.bdix.dhakaflix-0.1.0.zip`.
+   `plugin.bdix.dhakaflix-0.3.0.zip`.
 6. Wait for Kodi's **DhakaFlix add-on installed** notification.
 7. Open **Add-ons → Video add-ons → DhakaFlix**.
 
 If installing from a network share, first add it under **Settings → File
 manager → Add source**, then select that source in step 5.
 
-### 4. Configure the portal and nodes
+### 4. Complete first-time library setup
+
+The add-on service automatically starts a full sync only for a fresh add-on
+profile. It allows up to three attempts, retrying on later Kodi startups after
+an unsuccessful or incomplete attempt. Updates do not trigger automatic
+syncs. Once the initial sync completes successfully—or its retry limit is
+exhausted—syncing is manual only. Manual sync has no cooldown, but is ignored
+while another sync is running. A successful manual sync also satisfies the
+fresh-install initial sync.
+
+The initial sync discovers movie and TV/series categories from the portal,
+generates local `.strm` files, creates and validates separate Movies and TV
+Shows folders, then registers those paths in Kodi's `sources.xml`. A persistent
+background progress dialog shows crawl activity.
+
+When notified that a restart is required, restart Kodi so it loads the new
+sources. Content types and scrapers still need a one-time Kodi GUI setup:
+
+1. In Kodi, open **Videos → Files** and select **DhakaFlix Movies**.
+2. Set its content to **Movies**, choose a scraper, enable the movie-folder
+   option if appropriate, and enable recursive scanning for category folders.
+3. Repeat for **DhakaFlix TV Shows**, setting its content to **TV Shows** and
+   choosing a TV scraper.
+4. Open add-on settings and enable **I have configured DhakaFlix Movies and TV
+   Shows content** after configuring the source content/scrapers you want Kodi
+   to scan.
+5. From **Add-ons → Video add-ons → DhakaFlix**, choose **Sync DhakaFlix library
+   now** for a manual sync.
+
+After a complete sync, DhakaFlix automatically asks Kodi to scan the Movies
+and TV Shows sources. The scan starts once the one-time content/scraper setup
+has been confirmed in add-on settings.
+
+Automatic source registration edits Kodi's `sources.xml`, although Kodi's
+documentation recommends managing sources through its GUI. Before changing
+an existing file, the add-on makes a `.dhakaflix.bak` backup and preserves
+other sources. Kodi may need a restart to load registered paths; the add-on
+will notify you. This behavior needs testing on each Kodi platform/version.
+
+After a complete sync, stale `.strm` files owned by this add-on may be removed.
+The add-on does not run Kodi's global video-library clean because it can remove
+unrelated missing items from this profile. Kodi may retain stale database
+entries for removed `.strm` files until the library is cleaned separately.
+
+### 5. Review add-on settings
 
 Open **Add-ons → My add-ons → Video add-ons → DhakaFlix → Configure**.
 
-- **Portal start URL** is used by **Browse configured portal**. The default is
-  `http://172.16.50.7/`.
-- **DhakaFlix node 7/9/12/14 URL** settings power the curated category menus
-  and searches. Defaults are `http://172.16.50.7/`,
-  `http://172.16.50.9/`, `http://172.16.50.12/`, and
-  `http://172.16.50.14/`. Change a URL if your BDIX provider uses different
-  addresses; leave it blank to disable that node.
-- **Excluded keywords**, cache duration, and request timeout can also be
-  adjusted here.
+- Under **Kodi library**, **Sync movies** is enabled by default and **Sync TV
+  series** is disabled. Enable either or both to choose what library sync
+  includes. Disabling a type removes its managed `.strm` entries on a complete
+  sync when other selected media remain; Kodi may retain stale database rows.
+- The DhakaFlix portal and DHAKA-FLIX-7/10/12/14 server addresses are fixed
+  for this add-on.
+- **Excluded keywords**, cache duration, and request timeout can be adjusted
+  here.
 
-The add-on home screen offers generic portal browsing, movie categories,
-series categories, movie search, and series search. Kodi's player fetches
-selected video files directly from the source. Search requests run only when
-you submit a search; directory pages are fetched as you browse.
+The sync discovers current movie and TV/series links from the portal homepage.
+Documentaries, wrestling, awards shows, games, software, and tutorials are
+excluded from library sync. Every item from a series category goes under
+`TV Shows/<series>/<season>` when a season is available; movies go under
+Movies. Alternate URLs are retained as separate `.strm` files.
+
+Generated `.strm` pointers and the SQLite media/directory inventory are stored
+under the add-on's Kodi profile. The initial sync traverses the entire catalog.
+Later syncs use h5ai folder dates to skip unchanged subtrees, except that a
+sync run at least seven days after the previous full crawl performs a full
+audit. The seven-day interval does not schedule a sync: after the initial
+attempts, start syncs manually. These minute-resolution dates are not
+recursive, so deeper changes can wait until a later full audit. Unchanged
+`.strm` files are not rewritten. Existing entries are reclassified, excluded
+entries removed, and empty managed folders pruned during a full audit. Kodi
+fetches video bytes directly from the original media node during playback, so
+the Kodi device must reach that node.
+The home menu also retains generic browsing, curated categories, and search.
 
 ## Install from a private GitHub repository
 
@@ -85,7 +146,7 @@ sign in and have repository access to download private artifacts/releases.
 Transfer the downloaded ZIP to Kodi and follow the install steps above.
 
 The release workflow publishes when you push a tag matching the version in
-`plugin.bdix.dhakaflix/addon.xml`, for example `v0.1.0`. A private GitHub
+`plugin.bdix.dhakaflix/addon.xml`, for example `v0.3.0`. A private GitHub
 release is a download location; it does not automatically install or update
 the add-on on Kodi.
 
@@ -128,18 +189,18 @@ After updating `version` in `plugin.bdix.dhakaflix/addon.xml`, commit and push
 the change, then tag that exact version:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 ## Troubleshooting
 
 - **Portal or categories do not load:** confirm the Kodi device (not just your
-  development computer) can open the configured `172.16.50.x` URLs over your
-  BDIX/LAN connection. Check the node URL settings and try **Refresh listing**
-  from a folder's context menu.
+  development computer) can reach the fixed `172.16.50.x` portal and server
+  addresses over your BDIX/LAN connection. Try **Refresh listing** from a
+  folder's context menu.
 - **Some search results are missing:** one or more nodes may be unreachable;
-  check each node URL and Kodi's log.
+  check connectivity to the fixed server addresses and Kodi's log.
 - **A video does not start:** confirm that the media-node URL is reachable
   directly from Kodi. Playback is not relayed through another computer.
 - **Need the log:** use Kodi's **Settings → System → Logging** to enable debug

@@ -16,7 +16,9 @@ class RouterTests(unittest.TestCase):
         query = route.split("?", 1)[1]
         parsed = parse_route(base, query)
         self.assertEqual(parsed.action, "browse")
-        self.assertEqual(parsed.target_url, "http://172.16.50.7/Film%20(2026)%20%5BBD%5D.mkv")
+        self.assertEqual(
+            parsed.target_url, "http://172.16.50.7/Film%20(2026)%20%5BBD%5D.mkv"
+        )
 
     def test_requires_target_url_for_non_root_actions(self):
         with self.assertRaises(RouteError):
@@ -29,7 +31,9 @@ class RouterTests(unittest.TestCase):
     def test_round_trip_catalog_and_search_routes(self):
         base = "plugin://plugin.bdix.dhakaflix/"
         catalog = plugin_url(base, "catalog", media_type="series")
-        self.assertEqual(parse_route(base, catalog.split("?", 1)[1]).media_type, "series")
+        self.assertEqual(
+            parse_route(base, catalog.split("?", 1)[1]).media_type, "series"
+        )
 
         search = plugin_url(base, "search", media_type="movie")
         route = parse_route(base, search.split("?", 1)[1])

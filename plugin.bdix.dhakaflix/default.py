@@ -11,11 +11,16 @@ import xbmcaddon
 import xbmcgui
 import xbmcplugin
 import xbmcvfs
-
 from resources.lib.cache import ListingCache
-from resources.lib.catalog import NODES, categories, search_nodes
+from resources.lib.catalog import NODE_URLS, PORTAL_URL, categories, search_nodes
+from resources.lib.library import (
+    SyncRequestError,
+    enqueue_manual_sync,
+    library_paths,
+)
 from resources.lib.portal import PortalClient, PortalError
 from resources.lib.router import RouteError, parse_route, plugin_url
+from resources.lib.urls import http_origin
 
 ADDON_ID = "plugin.bdix.dhakaflix"
 ADDON = xbmcaddon.Addon(id=ADDON_ID)
@@ -23,18 +28,16 @@ HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
 
 
-def _log(message, level=xbmc.LOGINFO):
-    xbmc.log("[{}] {}".format(ADDON_ID, message), level)
-
-
 def _notify(message):
     xbmcgui.Dialog().notification(ADDON.getAddonInfo("name"), message)
 
 
+def _notify_error(message, details=None):
+    text = f"{message}\n\n{details}" if details else message
+    xbmcgui.Dialog().ok(ADDON.getAddonInfo("name"), text)
+
+
 def _settings():
-    origin_url = ADDON.getSetting("origin_url").strip()
-    if not origin_url:
-        origin_url = "http://172.16.50.7/"
     excluded_keywords = [
         word.strip().casefold()
         for word in ADDON.getSetting("excluded_keywords").split(",")
@@ -48,15 +51,12 @@ def _settings():
         timeout = int(ADDON.getSetting("request_timeout") or "20")
     except ValueError:
         timeout = 20
-    node_urls = {}
-    for node_id, node in NODES.items():
-        node_urls[node_id] = ADDON.getSetting(node["setting"]).strip()
     return (
-        origin_url,
+        PORTAL_URL,
         excluded_keywords,
         max(0, cache_ttl),
         min(max(timeout, 3), 60),
-        node_urls,
+        dict(NODE_URLS),
     )
 
 
@@ -164,11 +164,18 @@ def _menu_item(label, route, is_folder=True):
 
 def _render_home(origin_url):
     items = [
-        _menu_item("Browse configured portal", _route_url("browse", origin_url)),
+        _menu_item("Browse DhakaFlix portal", _route_url("browse", origin_url)),
         _menu_item("Movie categories", _route_url("catalog", media_type="movie")),
-        _menu_item("TV & series categories", _route_url("catalog", media_type="series")),
+        _menu_item(
+            "TV & series categories", _route_url("catalog", media_type="series")
+        ),
         _menu_item("Search movies", _route_url("search", media_type="movie")),
         _menu_item("Search TV & series", _route_url("search", media_type="series")),
+        _menu_item(
+            "Sync DhakaFlix library now",
+            _route_url("sync"),
+            is_folder=False,
+        ),
         _menu_item("Add-on settings", _route_url("settings"), is_folder=False),
     ]
     _finish_directory(items, content="videos")
@@ -181,12 +188,12 @@ def _render_catalog(media_type, node_urls):
     ]
     _finish_directory(items, content="videos")
     if not items:
-        _notify("No source nodes are configured")
+        _notify("No categories are available")
 
 
 def _search_dialog(media_type, client, node_urls):
     heading = "movies" if media_type == "movie" else "TV & series"
-    keyboard = xbmc.Keyboard("", "Search {}".format(heading))
+    keyboard = xbmc.Keyboard("", f"Search {heading}")
     keyboard.doModal()
     if not keyboard.isConfirmed():
         xbmcplugin.endOfDirectory(HANDLE, succeeded=True, cacheToDisc=False)
@@ -202,7 +209,7 @@ def _search(client, media_type, query, node_urls):
     nodes = search_nodes(media_type, node_urls)
     if not nodes:
         _finish_directory([])
-        _notify("No source nodes are configured for this search")
+        _notify("No search sources are available")
         return
 
     results = []
@@ -217,8 +224,7 @@ def _search(client, media_type, query, node_urls):
             try:
                 results.extend((node_id, entry) for entry in future.result())
             except PortalError as error:
-                errors.append("Node {}: {}".format(node_id, error))
-                _log(errors[-1], xbmc.LOGWARNING)
+                errors.append(f"Node {node_id}: {error}")
 
     unique = {}
     for node_id, entry in results:
@@ -229,19 +235,20 @@ def _search(client, media_type, query, node_urls):
         key=lambda result: (result[1].name.casefold(), result[0]),
     ):
         item = _list_item(entry)
-        item.setInfo("video", {
-            "title": entry.name,
-            "mediatype": "video",
-            "studio": "DhakaFlix node {}".format(node_id),
-        })
+        item.setInfo(
+            "video",
+            {
+                "title": entry.name,
+                "mediatype": "video",
+                "studio": f"DhakaFlix node {node_id}",
+            },
+        )
         items.append((_route_url("play", entry.url), item, False))
 
     _finish_directory(items)
     if errors:
-        if items:
-            _notify("Some search sources could not be reached")
-        else:
-            _notify("Search failed: {}".format(errors[0]))
+        details = "\n".join(errors)
+        _notify_error("Some search sources could not be reached", details)
     elif not items:
         _notify("No matching videos found")
 
@@ -264,7 +271,8 @@ def main():
             excluded_keywords=exclusions,
             timeout=timeout,
             user_agent="Kodi DhakaFlix plugin/{}".format(ADDON.getAddonInfo("version")),
-            log_warning=lambda message: _log(message, xbmc.LOGWARNING),
+            warning_callback=_notify,
+            allowed_origins=(origin_url, *node_urls.values()),
         )
         cache = _cache(cache_ttl)
 
@@ -273,7 +281,21 @@ def main():
         elif route.action == "settings":
             ADDON.openSettings()
             xbmcplugin.endOfDirectory(HANDLE, succeeded=True, cacheToDisc=False)
+        elif route.action == "sync":
+            profile = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
+            queued = enqueue_manual_sync(library_paths(profile)["state"])
+            _notify(
+                "Library sync queued" if queued else "A library sync is already queued"
+            )
+            xbmcplugin.endOfDirectory(HANDLE, succeeded=queued, cacheToDisc=False)
         elif route.action == "play":
+            allowed_origins = {
+                http_origin(value)
+                for value in (origin_url, *node_urls.values())
+                if value
+            }
+            if http_origin(route.target_url) not in allowed_origins:
+                raise RouteError("Playback URL is not on an approved DhakaFlix server")
             _play(route.target_url)
         elif route.action == "catalog":
             _render_catalog(route.media_type, node_urls)
@@ -284,18 +306,13 @@ def main():
             _browse(client, cache, target_url, refresh=route.action == "refresh")
         else:
             raise RouteError("Unsupported action")
-    except (PortalError, RouteError, ValueError) as error:
-        _log(str(error), xbmc.LOGERROR)
-        xbmcgui.Dialog().ok(ADDON.getAddonInfo("name"), str(error))
+    except (PortalError, RouteError, ValueError, SyncRequestError) as error:
+        _notify_error(str(error))
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False, cacheToDisc=False)
-    except Exception as error:
-        _log(
-            "Unexpected add-on error: {}\n{}".format(error, traceback.format_exc()),
-            xbmc.LOGERROR,
-        )
-        xbmcgui.Dialog().ok(
-            ADDON.getAddonInfo("name"),
-            "An unexpected error occurred. Check the Kodi log for details.",
+    except Exception as error:  # noqa: BLE001
+        _notify_error(
+            "Unexpected add-on error",
+            f"{error}\n\n{traceback.format_exc()}",
         )
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False, cacheToDisc=False)
 

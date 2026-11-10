@@ -19,10 +19,16 @@ class Route:
 
 def plugin_url(base_url, action, target_url=None, media_type=None):
     if action not in (
-        "root", "browse", "play", "refresh", "settings", "catalog",
+        "root",
+        "browse",
+        "play",
+        "refresh",
+        "settings",
+        "catalog",
         "search",
+        "sync",
     ):
-        raise RouteError("Unsupported action: {}".format(action))
+        raise RouteError(f"Unsupported action: {action}")
     params = {"action": action}
     if target_url:
         params["url"] = normalize_http_url(target_url)
@@ -37,16 +43,22 @@ def parse_route(base_url, query_string):
     params = parse_qs(query_string.lstrip("?"), keep_blank_values=True)
     action = params.get("action", ["root"])[0]
     if action not in (
-        "root", "browse", "play", "refresh", "settings", "catalog",
+        "root",
+        "browse",
+        "play",
+        "refresh",
+        "settings",
+        "catalog",
         "search",
+        "sync",
     ):
-        raise RouteError("Unsupported action: {}".format(action))
+        raise RouteError(f"Unsupported action: {action}")
 
     target = params.get("url", [""])[0]
     media_type = params.get("type", [""])[0]
     if action in ("browse", "play", "refresh"):
         if not target:
-            raise RouteError("The {} route requires a URL".format(action))
+            raise RouteError(f"The {action} route requires a URL")
         try:
             target = normalize_http_url(target)
         except URLValidationError as error:

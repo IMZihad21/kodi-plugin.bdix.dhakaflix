@@ -5,15 +5,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgctxt "#30000"
-msgid "Portal"
-msgstr ""
-
-msgctxt "#30001"
-msgid "Portal start URL"
-msgstr ""
-
-msgctxt "#30002"
-msgid "The directory index URL reachable from this Kodi device."
+msgid "General"
 msgstr ""
 
 msgctxt "#30003"
@@ -21,7 +13,7 @@ msgid "Excluded keywords"
 msgstr ""
 
 msgctxt "#30004"
-msgid "Comma-separated words used to hide matching category folders."
+msgid "Comma-separated keywords used to exclude matching category folders."
 msgstr ""
 
 msgctxt "#30005"
@@ -29,7 +21,7 @@ msgid "Listing cache duration (seconds)"
 msgstr ""
 
 msgctxt "#30006"
-msgid "Set to 0 to disable listing caching."
+msgid "Set to 0 to disable caching."
 msgstr ""
 
 msgctxt "#30007"
@@ -37,29 +29,37 @@ msgid "Request timeout (seconds)"
 msgstr ""
 
 msgctxt "#30008"
-msgid "Maximum time to wait for a portal directory page."
+msgid "Maximum wait for a directory page response."
 msgstr ""
 
-msgctxt "#30009"
-msgid "BDIX source nodes"
+msgctxt "#30015"
+msgid "Kodi library"
 msgstr ""
 
-msgctxt "#30010"
-msgid "DhakaFlix node 7 URL"
+msgctxt "#30016"
+msgid "I have configured content and scrapers for the sync sources I enabled"
 msgstr ""
 
-msgctxt "#30011"
-msgid "DhakaFlix node 9 URL"
+msgctxt "#30017"
+msgid "After restarting Kodi, configure each source you enabled for sync, then enable this option."
 msgstr ""
 
-msgctxt "#30012"
-msgid "DhakaFlix node 12 URL"
+msgctxt "#30018"
+msgid "Browsing"
 msgstr ""
 
-msgctxt "#30013"
-msgid "DhakaFlix node 14 URL"
+msgctxt "#30019"
+msgid "Sync movies"
 msgstr ""
 
-msgctxt "#30014"
-msgid "Base URL for this DhakaFlix node. Leave blank to disable its categories and search."
+msgctxt "#30020"
+msgid "Include movie categories in library synchronization."
+msgstr ""
+
+msgctxt "#30021"
+msgid "Sync TV series"
+msgstr ""
+
+msgctxt "#30022"
+msgid "Include TV, anime, and series categories in library synchronization."
 msgstr ""

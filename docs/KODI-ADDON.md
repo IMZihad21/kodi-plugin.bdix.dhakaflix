@@ -4,10 +4,10 @@
 
 Add-on ID: `plugin.bdix.dhakaflix`.
 
-The add-on should be a standard Kodi Python plugin. Kodi launches `default.py`
-with a plugin URL and handle; the entry point parses the requested action,
-delegates portal operations to the library modules, and renders directory
-entries through Kodi's plugin APIs.
+The add-on provides a standard Kodi Python plugin and a startup service. Kodi
+launches `default.py` for browsing and manual controls; `service.py` checks the
+last successful sync at startup and performs due or manually requested
+library synchronization in the background.
 
 The current `addon.xml` requires `xbmc.python` 3.0.0, targeting Kodi Matrix
 (19) or later. Do not lower this requirement without testing the APIs and
@@ -18,27 +18,78 @@ settings schema on the older Kodi release.
 1. Kodi invokes the add-on root route.
 2. The add-on shows generic portal browsing, curated movie/series categories,
    search, and settings.
-3. Category shortcuts are built from configured node URLs; generic browsing
-   discovers links dynamically from the selected page.
-4. Search queries relevant configured nodes concurrently, validates and
+3. Category shortcuts use the fixed DHAKA-FLIX server addresses; generic
+   browsing discovers links dynamically from the selected page.
+4. Search queries relevant fixed servers concurrently, validates and
    deduplicates supported video links, and reports partial source failures.
 5. Selecting a folder fetches and parses that page on demand.
 6. Selecting a video creates a playable `ListItem` whose path is the resolved
    origin URL, attaching adjacent matching subtitles when available.
 7. Kodi's player fetches the media directly from the source.
 
-The add-on should not fetch video content just to build a listing. HEAD requests
-or metadata probing may be added later only where necessary and should have
-short timeouts.
+## Library synchronization flow
+
+1. On a fresh add-on profile, the service starts one automatic full sync. If
+   the attempt fails or is incomplete, it retries on later Kodi startups, up
+   to three total attempts. Existing profiles are not automatically synced on
+   add-on update. Once the initial sync succeeds or retries are exhausted,
+   future syncs are manual only. The add-on home menu can queue a manual sync
+   at any time except while another sync is running; manual sync has no
+   cooldown. A successful manual sync satisfies the initial sync. A background
+   progress dialog remains visible during the crawl.
+2. The sync fetches the fixed portal homepage, discovers current movie
+   and TV/series category links, and recursively traverses those h5ai listings
+   with bounded concurrency and page, depth, media, category, and duration
+   limits. Games, software, tutorials, documentaries, wrestling, and awards
+   shows are excluded from library sync. The initial sync visits the complete
+   catalog. Later syncs run a full audit when at least seven days have elapsed
+   since the previous full crawl; the interval does not schedule a sync.
+   Between audits, the add-on compares h5ai folder dates to its SQLite
+   inventory and skips unchanged subtrees.
+3. Every video discovered under a TV/series category is placed under the TV
+   Shows root, grouped by inferred series and season folders. Other supported
+   videos are placed under Movies. Every distinct URL, including alternate
+   encodes, is retained.
+4. `.strm` files point to the source URLs; media bytes are not fetched for
+   import. Movies and TV Shows are written to separate roots in the add-on's
+   Kodi profile. Generated absolute paths are shortened with stable hash
+   suffixes when needed, and components are byte-limited for Windows, macOS,
+   and Linux filesystem compatibility.
+5. A complete crawl is required before stale index-owned files are pruned.
+   Category/directory failures leave the previous library generation intact.
+   A full audit reclassifies entries and successful pruning also removes empty
+   directories under the managed Movies and TV Shows roots. Kodi's global
+   library clean is not run, to avoid removing unrelated missing items; Kodi
+   may retain stale database entries for deleted `.strm` files.
+6. The service creates and verifies both library root directories, then
+   registers those roots in Kodi's `sources.xml`, preserving other sources and
+   keeping a backup. A changed file triggers a restart-required notification;
+   scans wait until a later Kodi startup.
+7. Kodi still needs a one-time GUI content/scraper setup for each source. The
+   user confirms this in add-on settings; after every complete sync, the
+   service automatically scans Movies and TV Shows in sequence. If content
+   setup is not confirmed yet, it queues the refresh until confirmation. A
+   successful prune does not trigger Kodi's global video-library clean.
+
+The add-on does not download media content for browsing or synchronization.
 
 ## Module responsibilities
 
 - `default.py`: Kodi entry point, argument parsing, dispatch, and top-level
-  error presentation.
+  error presentation, including manual-sync requests.
+- `service.py`: startup scheduling, manual request processing, source
+  registration, Kodi scan/clean orchestration, and user notifications.
 - `router.py`: map safe plugin actions and URL parameters to operations.
 - `portal.py`: HTTP requests, response status/encoding handling, directory
   fetching, and the h5ai JSON search API.
 - `catalog.py`: curated category paths and node-specific search support.
+- `sync.py`: Kodi-independent portal category discovery, bounded full and
+  incremental crawls, conservative media classification, and `.strm`
+  generation.
+- `library_index.py`: SQLite media/directory inventory and legacy manifest
+  migration.
+- `library.py`: local library paths, manual request queue, and atomic
+  `sources.xml` registration.
 - `parser.py`: convert portal HTML into typed category, directory, image, and
   video entries.
 - `urls.py`: normalize and validate HTTP(S) URLs.
@@ -93,16 +144,24 @@ download logic.
 
 Expose user settings through Kodi's settings API:
 
-- Portal start URL (default may point to the documented DhakaFlix portal).
-- Base URLs for the curated DhakaFlix nodes; a blank node URL disables its
-  category shortcuts and search.
+- Movie library sync, enabled by default.
+- TV/series library sync, disabled by default.
 - Excluded category keywords.
 - Listing cache duration.
 - Request timeout for slow source nodes.
+- Confirmation that the user has configured Kodi content types and scrapers
+  for the enabled sync sources.
+
+Sync media-type settings filter discovered categories before crawling. When a
+previously enabled type is disabled, its managed entries are pruned on a
+complete sync if at least one selected media item remains. Empty crawls
+continue to preserve existing library data.
 
 The generic directory browser and curated multi-node categories/search are both
-available from the add-on home menu. The node/category mapping is based on
-observed DhakaFlix layouts and must be checked against the live BDIX service.
+available from the add-on home menu. The portal and server URLs are hardcoded.
+Sync category links are discovered from the portal homepage; curated
+browsing/search paths remain based on observed node layouts. Both behaviors
+must be checked against the live BDIX service.
 
 Do not store credentials unless the origin adds authentication and a specific
 secure credential mechanism is designed.
@@ -112,9 +171,18 @@ secure credential mechanism is designed.
 Cache parsed directory results by normalized page URL and expire them after the
 configured TTL. Cache only listings and lightweight metadata, not media bytes.
 
-A refresh action should invalidate the current page and reload it. Avoid a
-background crawler or full-site scan; Kodi navigation naturally drives
-on-demand requests.
+A refresh action should invalidate the current page and reload it. The library
+sync is a distinct, user-triggered/startup background crawl with bounded
+concurrency, page/depth/media/category/duration limits, an 8 MiB directory
+response limit, and complete-versus-partial state. It performs a full crawl
+when a sync runs after the seven-day interval and uses timestamp-based subtree
+skipping between those audits. After the initial sync/retries, the user must
+manually trigger syncs; the interval does not schedule them.
+
+h5ai displays directory modification times to the minute. These timestamps
+describe each directory's own entries; they do not propagate changes made
+deeper in the tree. Incremental updates are best-effort, and a change inside a
+skipped subtree may not be detected until a later full audit.
 
 ## Failure handling and diagnostics
 
@@ -133,8 +201,15 @@ have a route to the ISP/LAN portal; internet connectivity alone may not be
 enough. Direct playback also requires the player device to reach the media
 node, not merely the device where a separate service might run.
 
-The add-on makes requests only when the user browses a listing and only
-accepts HTTP(S) URLs without embedded credentials. Redirect targets are also
-validated. Cross-host links are permitted because the portal uses multiple
-private-network nodes; actual Kodi-device reachability is a deployment
-requirement.
+The add-on requests pages when the user browses or when an initial/manual
+library sync runs. It only accepts HTTP(S) URLs without embedded credentials;
+redirect targets are validated. Sync category and child-directory links are
+restricted to private-network addresses or the portal host. Actual
+Kodi-device reachability is a deployment requirement.
+
+Kodi's documentation recommends managing media sources through the GUI rather
+than editing `sources.xml`. Automatic registration is intentionally attempted
+for this project, but is unsupported and must be validated on each target
+platform/version. The one-time content type and scraper setup remains a Kodi
+GUI step. A global video-library clean can remove other missing library items
+and is deliberately not requested after this add-on prunes stale entries.

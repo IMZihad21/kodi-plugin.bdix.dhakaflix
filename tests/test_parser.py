@@ -17,7 +17,7 @@ class DirectoryParserTests(unittest.TestCase):
           <td class="fb-n"><a href="Year%20%282026%29/">Year (2026)</a></td>
           <td class="fb-d">2026-01-01</td><td class="fb-s"></td></tr>
           <tr><td class="fb-i"><img src="file.png"></td>
-          <td class="fb-n"><a href="Film%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE.mkv">Film বাংলা.mkv</a></td>
+          <td class="fb-n"><a href="Film বাংলা.mkv">Film বাংলা.mkv</a></td>
           <td class="fb-d"></td><td class="fb-s"></td></tr>
           <tr><td class="fb-i"><img src="folder-parent.png"></td>
           <td class="fb-n"><a href="../">Parent Directory</a></td>
@@ -42,6 +42,7 @@ class DirectoryParserTests(unittest.TestCase):
             entries[0].url,
             "http://172.16.50.7/movies/Year%20%282026%29/",
         )
+        self.assertEqual(entries[0].modified, "2026-01-01")
 
     def test_generic_anchor_fallback_and_duplicate_links(self):
         source = """
@@ -62,7 +63,10 @@ class DirectoryParserTests(unittest.TestCase):
         self.assertEqual(classify_file("readme.txt"), "other")
 
     def test_ignores_unsupported_links(self):
-        source = '<a href="file:///etc/passwd">secret</a><a href="javascript:alert(1)">invalid</a>'
+        source = (
+            '<a href="file:///etc/passwd">secret</a>'
+            '<a href="javascript:alert(1)">invalid</a>'
+        )
         self.assertEqual(parse_directory(source, "https://media.example/"), [])
 
 
@@ -74,11 +78,13 @@ class URLValidationTests(unittest.TestCase):
         )
 
     def test_rejects_non_http_and_credentials(self):
-        for value in ("file:///movie.mkv", "javascript:alert(1)", "http://user:pw@example.com/"):
-            with self.subTest(value=value):
-                with self.assertRaises(URLValidationError):
-                    normalize_http_url(value)
-
+        for value in (
+            "file:///movie.mkv",
+            "javascript:alert(1)",
+            "http://user:pw@example.com/",
+        ):
+            with self.subTest(value=value), self.assertRaises(URLValidationError):
+                normalize_http_url(value)
 
     def test_rejects_invalid_hostname(self):
         with self.assertRaises(URLValidationError):
