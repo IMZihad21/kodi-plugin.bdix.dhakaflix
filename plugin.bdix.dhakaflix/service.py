@@ -31,11 +31,16 @@ POLL_SECONDS = 10
 MAX_INITIAL_SYNC_ATTEMPTS = 3
 
 
+def _log(message, level=xbmc.LOGINFO):
+    xbmc.log(f"[{ADDON_ID}] {message}", level)
+
+
 def _notify(message):
     xbmcgui.Dialog().notification(ADDON.getAddonInfo("name"), message)
 
 
 def _notify_error(message, details):
+    _log(f"{message}: {details}", xbmc.LOGERROR)
     xbmcgui.Dialog().ok(
         ADDON.getAddonInfo("name"),
         f"{message}\n\n{details}",
@@ -69,9 +74,9 @@ def _read_state(library_dir):
             value = json.load(source)
     except FileNotFoundError:
         return {}
-    except (OSError, ValueError) as error:
-        if isinstance(error, OSError):
-            raise RuntimeError(f"Unable to read sync state: {error}") from error
+    except OSError as error:
+        raise RuntimeError(f"Unable to read sync state: {error}") from error
+    except ValueError as error:
         _quarantine_state(path, str(error))
         return {}
     if not isinstance(value, dict):
@@ -173,9 +178,9 @@ class ServiceMonitor(xbmc.Monitor):
                 _write_state(self.library_dir, state)
                 _notify("DhakaFlix Kodi library refresh complete")
         except Exception as error:  # noqa: BLE001
-            _notify_error(
+            _report_service_error(
                 "Unable to advance Kodi library refresh",
-                f"{error}\n\n{traceback.format_exc()}",
+                error,
             )
 
 
@@ -195,13 +200,9 @@ def _client():
         excluded_keywords=excluded_keywords,
         timeout=timeout,
         user_agent=f"Kodi DhakaFlix plugin/{ADDON.getAddonInfo('version')}",
-        warning_callback=_notify,
+        warning_callback=lambda message: _log(message, xbmc.LOGWARNING),
         allowed_origins=(PORTAL_URL, *NODE_URLS.values()),
     )
-
-
-def _content_is_configured():
-    return ADDON.getSetting("library_sources_configured").casefold() == "true"
 
 
 def _sync_media_types():
@@ -215,15 +216,13 @@ def _sync_media_types():
     return frozenset(media_types)
 
 
-def _queue_refresh_until_configured(library_dir, state):
+def _queue_library_refresh(library_dir, state):
     state["library_refresh_pending"] = True
     state.pop("library_refresh_pending_clean", None)
     _write_state(library_dir, state)
 
 
 def _resume_pending_refresh(library_dir, paths, resume_existing=False):
-    if not _content_is_configured():
-        return
     state = _read_state(library_dir)
     refresh = state.get("library_refresh")
     if isinstance(refresh, dict):
@@ -255,16 +254,15 @@ def _ensure_sources(library_dir, paths, state):
         state["registration_restart_pending"] = True
         _write_state(library_dir, state)
         _notify(
-            "DhakaFlix library paths registered. Restart Kodi to load them, "
-            "then set Movies and TV Shows content/scrapers once."
+            "DhakaFlix library paths registered. Restart Kodi to load them; "
+            "library scanning will resume automatically."
         )
         return True
     if state.pop("registration_restart_pending", False):
-        _queue_refresh_until_configured(library_dir, state)
-        _notify(
-            "DhakaFlix sources are loaded. Confirm their Movies and TV Shows "
-            "content/scraper settings in Kodi."
-        )
+        if state.get("last_success"):
+            _queue_library_refresh(library_dir, state)
+        else:
+            _write_state(library_dir, state)
     return False
 
 
@@ -331,10 +329,7 @@ def _perform_sync(
         _notify("DhakaFlix sync stopped because Kodi is shutting down")
         return False
     except Exception as error:  # noqa: BLE001
-        _notify_error(
-            "DhakaFlix sync failed",
-            f"{error}\n\n{traceback.format_exc()}",
-        )
+        _report_service_error("DhakaFlix sync failed", error)
         return False
 
     if not result.complete:
@@ -352,11 +347,7 @@ def _perform_sync(
         _notify("Sync complete; restart Kodi before scanning the new sources")
         return True
     try:
-        if _content_is_configured():
-            _begin_library_refresh(library_dir, _read_state(library_dir), paths)
-        else:
-            _queue_refresh_until_configured(library_dir, _read_state(library_dir))
-            _notify("Set the DhakaFlix source content and scraper in Kodi to finish")
+        _begin_library_refresh(library_dir, _read_state(library_dir), paths)
     except Exception as error:  # noqa: BLE001
         _report_service_error(
             "DhakaFlix sync succeeded but Kodi library refresh could not be queued",
@@ -370,7 +361,11 @@ def _perform_sync(
 
 
 def _report_service_error(message, error):
-    _notify_error(message, f"{error}\n\n{traceback.format_exc()}")
+    _log(f"{message}: {error}\n{traceback.format_exc()}", xbmc.LOGERROR)
+    xbmcgui.Dialog().ok(
+        ADDON.getAddonInfo("name"),
+        f"{message}\n\n{error}",
+    )
 
 
 def _finish_sync_status(library_dir, started_at, succeeded, automatic):
@@ -571,7 +566,8 @@ def main():
         else:
             try:
                 _resume_pending_refresh(library_dir, paths, resume_existing=True)
-            except Exception as error:
+            # Keep unexpected Kodi refresh errors visible without terminating the service.
+            except Exception as error:  # noqa: BLE001
                 _report_service_error("Unable to resume Kodi library refresh", error)
             state = _read_state(library_dir)
             if (
@@ -580,7 +576,8 @@ def main():
                 and _auto_sync_due(state)
             ):
                 _run_sync_request(library_dir, paths, monitor, automatic=True)
-    except Exception as error:
+    # Keep unexpected initialization errors visible without terminating Kodi.
+    except Exception as error:  # noqa: BLE001
         _report_service_error("DhakaFlix service initialization failed", error)
         return
 
@@ -593,7 +590,8 @@ def main():
             request_path = os.path.join(library_dir, "sync.request")
             if os.path.isfile(request_path) and not state.get("library_refresh"):
                 _process_sync_request(library_dir, paths, monitor)
-        except Exception as error:
+        # Isolate each iteration so one unexpected error does not stop future syncs.
+        except Exception as error:  # noqa: BLE001
             _report_service_error("DhakaFlix service iteration failed", error)
 
 

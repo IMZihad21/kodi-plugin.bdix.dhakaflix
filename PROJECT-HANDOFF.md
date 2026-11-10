@@ -50,8 +50,8 @@ validation on actual supported Kodi devices before release.
   sources, back up before editing, and notify when a Kodi restart is needed.
 - Create and verify both library root directories before registering them as
   writable Kodi sources so Kodi never receives a missing or invalid path.
-- Kodi still requires a one-time GUI content/scraper configuration for each
-  source and user confirmation in add-on settings.
+- Library scans resume automatically after registered paths are loaded at
+  Kodi startup. Scraper selection remains an optional Kodi-side choice.
 
 ## Code map
 
@@ -132,13 +132,12 @@ on supported Kodi versions and verify:
 
 1. First-run source registration, backup, restart notice, and source loading
    after restart.
-2. One-time Movies/TV Shows content and scraper configuration.
-3. Fresh-install automatic sync, startup retry counts/exhaustion, update
+2. Fresh-install automatic sync, startup retry counts/exhaustion, update
    behavior, manual sync, cancellation, progress, and recovery after network
    or filesystem errors.
-4. Complete and partial crawl behavior, alternate URLs, generated naming,
+3. Complete and partial crawl behavior, alternate URLs, generated naming,
    pruning boundaries, and stale Kodi database behavior.
-5. Kodi library scan completion, scraper results, direct playback, and
+4. Kodi library scan completion, optional scraper results, direct playback, and
    preservation of unrelated library sources/items.
 
 Latest host validation must be refreshed before release. A bounded live

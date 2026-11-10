@@ -8,8 +8,8 @@ import re
 import shutil
 import tempfile
 import time
-import uuid
 import unicodedata
+import uuid
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass

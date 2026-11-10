@@ -19,12 +19,12 @@ The portal has been observed across several private-network nodes:
 - `172.16.50.14`: English 1080p, Hindi, South Indian, animation, IMDb Top 250,
   and Korean series.
 - `172.16.50.12`: TV and web series in alphabet buckets.
-- `172.16.50.9`: anime, cartoons, documentaries, wrestling, awards, and shows.
+- `172.16.50.10`: anime, cartoons, documentaries, wrestling, awards, and shows.
 
 These addresses and directory names can change. Keep category paths curated for
 useful navigation, but make each node URL configurable and allow a node to be
-disabled by clearing its setting. Also retain a generic configured-root browser
-for discovering new categories without a software release.
+disabled by clearing its setting. Keep the generic browser rooted at the fixed
+portal homepage; do not expose a portal-root setting.
 
 Directory pages use `h5ai` table rows with `fb-i`, `fb-n`, `fb-d`, and `fb-s`
 cells. Folder/file icons distinguish directories from files. Common media
@@ -50,8 +50,8 @@ season folders for shows, plus video files, image artwork, and subtitles.
    unless that changes. Do not collect or persist Kodi credentials.
 7. **No third-party Python packages initially.** Prefer Python's standard
    library and Kodi's bundled APIs to keep installation self-contained.
-8. **Respect network boundaries.** The configured origin may only be reachable
-   on the ISP/LAN network. The add-on must report connection failures clearly;
+8. **Respect network boundaries.** The portal and configured nodes may only be
+   reachable on the ISP/LAN network. The add-on must report connection failures clearly;
    do not imply that private-origin URLs will work from arbitrary networks.
 
 ## 4. Add-on structure
@@ -82,8 +82,8 @@ Kodi UI adapter so those parts can be tested independently.
 
 - Add-on home: offer generic portal browsing, curated movie/series categories,
   multi-node search, and settings.
-- Node URLs, portal root, exclusions, cache, and request timeout are configurable
-  from Kodi settings.
+- Node URLs, exclusions, cache, and request timeout are configurable from Kodi
+  settings. The portal root remains fixed.
 - Category or folder: show child folders and supported media files.
 - Video item: display a playable list item with a sensible title, playable
   content type, and available artwork.
@@ -103,14 +103,14 @@ before requesting or playing them.
 
 - Target Kodi Matrix (19) or later through the `xbmc.python` 3.0.0 API.
 - Keep target device/operating-system playback validation as a release gate.
-- Verify that the Kodi device can reach the configured portal and a sample
+- Verify that the Kodi device can reach the fixed portal and a sample
   media URL.
 - Capture representative category, folder, movie, and TV HTML fixtures without
   including private user data.
 
 ### Phase 1: minimal playable vertical slice — implemented, Kodi validation pending
 
-- Add-on metadata, configurable root discovery, folder navigation, direct
+- Add-on metadata, fixed-root discovery, folder navigation, direct
   playback routing, and visible/logged network failures are implemented.
 - Validate the vertical slice in a real Kodi installation on the intended
   device and on a second platform before release.

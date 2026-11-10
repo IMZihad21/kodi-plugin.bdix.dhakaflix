@@ -178,21 +178,30 @@ def register_sources(sources_xml_path, movies_path, tv_path):
         ("DhakaFlix TV Shows", tv_path),
     )
     existing_paths = _source_paths(video)
-    existing_names = {
-        source.findtext("name", default="").strip().casefold(): source
-        for source in video.findall("source")
-    }
     changed = False
     for name, path in desired:
         absolute_path = os.path.abspath(path)
         normalized_path = _normalized_path(absolute_path)
+        matching_named = [
+            source
+            for source in video.findall("source")
+            if source.findtext("name", default="").strip().casefold() == name.casefold()
+        ]
+        if matching_named:
+            named_paths = {
+                _normalized_path(path_element.text.strip())
+                for source in matching_named
+                for path_element in source.findall("path")
+                if path_element.text and path_element.text.strip()
+            }
+            if normalized_path not in named_paths:
+                raise SourceRegistrationError(
+                    f"Kodi already has a source named {name!r} with a different path"
+                )
+            existing_paths.add(normalized_path)
+            continue
         if normalized_path in existing_paths:
             continue
-        conflicting_source = existing_names.get(name.casefold())
-        if conflicting_source is not None:
-            raise SourceRegistrationError(
-                f"Kodi already has a source named {name!r} with a different path"
-            )
         _create_source(video, name, absolute_path)
         existing_paths.add(normalized_path)
         changed = True

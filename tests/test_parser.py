@@ -69,6 +69,41 @@ class DirectoryParserTests(unittest.TestCase):
         )
         self.assertEqual(parse_directory(source, "https://media.example/"), [])
 
+    def test_strict_mode_allows_failure_words_inside_valid_h5ai_listings(self):
+        source = """
+        <div id="fallback"><table>
+          <tr><td class="fb-i"><img src="folder.png"></td>
+          <td class="fb-n"><a href="The%20Forbidden%20Kingdom%20(2008)/">The Forbidden Kingdom (2008)</a></td>
+          <td class="fb-d">2026-01-01</td><td class="fb-s"></td></tr>
+        </table></div>
+        """
+        entries = parse_directory(
+            source,
+            "http://172.16.50.7/movies/",
+            strict=True,
+        )
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].name, "The Forbidden Kingdom (2008)")
+
+    def test_strict_mode_rejects_error_page_without_h5ai_structure(self):
+        source = "<html><body><h1>403 Forbidden - Access Denied</h1></body></html>"
+        with self.assertRaisesRegex(ValueError, "access, challenge, or error page"):
+            parse_directory(source, "http://172.16.50.7/movies/", strict=True)
+
+    def test_strict_mode_rejects_error_message_even_with_h5ai_structure(self):
+        source = """
+        <html><body>
+          <h1>403 Forbidden - Access Denied</h1>
+          <div id="fallback"><table>
+            <tr><td class="fb-i"><img src="file.png"></td>
+            <td class="fb-n"><a href="maintenance.mkv">maintenance.mkv</a></td>
+            <td class="fb-d"></td><td class="fb-s"></td></tr>
+          </table></div>
+        </body></html>
+        """
+        with self.assertRaisesRegex(ValueError, "access, challenge, or error page"):
+            parse_directory(source, "http://172.16.50.7/movies/", strict=True)
+
 
 class URLValidationTests(unittest.TestCase):
     def test_normalizes_spaces_and_drops_fragment(self):

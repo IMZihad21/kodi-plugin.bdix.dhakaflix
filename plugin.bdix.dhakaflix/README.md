@@ -1,7 +1,7 @@
 # DhakaFlix for Kodi
 
 An unofficial Kodi video add-on and background service. It discovers movie
-and TV/series directories from the configured DhakaFlix portal and generates
+and TV/series directories from the DhakaFlix portal and generates
 local `.strm` pointers to original media URLs. It does not download, proxy, or
 transcode media.
 
@@ -15,17 +15,15 @@ future syncs. Manual sync has no cooldown but will not overlap an active sync;
 a successful manual sync satisfies the initial sync.
 
 Generated Movies and TV Shows roots are stored below the add-on's Kodi profile.
-The service attempts to register them in Kodi's `sources.xml`, preserves other
-sources, and backs up that file before changing it. If a Kodi restart is needed
-to load the new paths, the add-on notifies you.
+The service registers them in Kodi's `sources.xml`, preserves other sources,
+and backs up that file before changing it. If a Kodi restart is needed to load
+the new paths, the add-on notifies you. After each complete sync, Kodi is asked
+to scan both library roots.
 
-Kodi still requires a one-time GUI setup: set the DhakaFlix Movies source to
-Movies and DhakaFlix TV Shows to TV Shows, choose scrapers, and enable recursive
-scanning. Then enable **I have configured DhakaFlix Movies and TV Shows
-content** in add-on settings. After a successful sync, Kodi scans the sources.
-The add-on does not run Kodi's global video-library clean because that could
-remove unrelated missing items from the profile. Kodi may retain stale library
-database entries for removed `.strm` files until cleaned separately.
+Metadata scrapers remain under Kodi's control. The add-on does not run Kodi's
+global video-library clean because that could remove unrelated missing items
+from the profile. Kodi may retain stale library database entries for removed
+`.strm` files until cleaned separately.
 
 Movies remain in Movies. All media discovered in TV/series categories goes
 under TV Shows, grouped by series and season where the portal structure allows.
@@ -52,13 +50,16 @@ Detailed failures are shown in Kodi error dialogs.
 ## Directory browsing
 
 The add-on retains generic portal browsing, curated movie/series categories,
-and search. Portal and server addresses are fixed. Excluded keywords, listing
-cache duration, and request timeout remain configurable in Kodi settings.
+and search. The portal root is fixed. Excluded keywords, listing cache
+duration, request timeout, and individual node URLs are configurable in
+**Discovery** settings. Node URL settings affect browsing, categories, and
+search only; library sync uses its own fixed sources.
 
-In the add-on's **Kodi library** settings, **Sync movies** is on by default and
-**Sync TV series** is off. Turn on either or both to choose the categories
-included in library sync. Turning a type off removes its managed `.strm` files
-after a complete sync when other selected media remain.
+In the add-on's **Sync** settings, **Sync movies** is on by default and **Sync
+TV series** is off. Turn on either or both to choose the categories included
+in library sync. Turning a type off removes its managed `.strm` files after a
+complete sync when other selected media remain. Discovery settings control
+excluded keywords, listing cache duration, and request timeout.
 
 ## Development
 

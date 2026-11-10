@@ -12,7 +12,7 @@ import xbmcgui
 import xbmcplugin
 import xbmcvfs
 from resources.lib.cache import ListingCache
-from resources.lib.catalog import NODE_URLS, PORTAL_URL, categories, search_nodes
+from resources.lib.catalog import NODES, PORTAL_URL, categories, search_nodes
 from resources.lib.library import (
     SyncRequestError,
     enqueue_manual_sync,
@@ -20,12 +20,16 @@ from resources.lib.library import (
 )
 from resources.lib.portal import PortalClient, PortalError
 from resources.lib.router import RouteError, parse_route, plugin_url
-from resources.lib.urls import http_origin
+from resources.lib.urls import URLValidationError, http_origin, normalize_http_url
 
 ADDON_ID = "plugin.bdix.dhakaflix"
 ADDON = xbmcaddon.Addon(id=ADDON_ID)
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
+
+
+def _log(message, level=xbmc.LOGINFO):
+    xbmc.log(f"[{ADDON_ID}] {message}", level)
 
 
 def _notify(message):
@@ -38,6 +42,17 @@ def _notify_error(message, details=None):
 
 
 def _settings():
+    node_urls = {}
+    for node_id, node in NODES.items():
+        value = ADDON.getSetting(node["setting"]).strip()
+        if not value:
+            node_urls[node_id] = ""
+            continue
+        try:
+            node_urls[node_id] = normalize_http_url(value)
+        except URLValidationError as error:
+            raise ValueError(f"Invalid DhakaFlix node {node_id} URL: {error}") from error
+
     excluded_keywords = [
         word.strip().casefold()
         for word in ADDON.getSetting("excluded_keywords").split(",")
@@ -56,7 +71,7 @@ def _settings():
         excluded_keywords,
         max(0, cache_ttl),
         min(max(timeout, 3), 60),
-        dict(NODE_URLS),
+        node_urls,
     )
 
 
@@ -74,11 +89,31 @@ def _route_url(action, target_url=None, media_type=None):
     )
 
 
+def _set_video_info(item, title, mediatype=None, studio=None):
+    if hasattr(item, "getVideoInfoTag"):
+        tag = item.getVideoInfoTag()
+        tag.setTitle(title)
+        if mediatype and hasattr(tag, "setMediaType"):
+            tag.setMediaType(mediatype)
+        if studio:
+            if hasattr(tag, "setStudios"):
+                tag.setStudios([studio])
+            elif hasattr(tag, "setStudio"):
+                tag.setStudio(studio)
+        return
+    info = {"title": title}
+    if mediatype:
+        info["mediatype"] = mediatype
+    if studio:
+        info["studio"] = studio
+    item.setInfo("video", info)
+
+
 def _list_item(entry, artwork_url=None):
     item = xbmcgui.ListItem(label=entry.name, path=entry.url)
     if artwork_url:
         item.setArt({"thumb": artwork_url, "icon": artwork_url})
-    item.setInfo("video", {"title": entry.name})
+    _set_video_info(item, entry.name)
     if entry.kind == "video":
         item.setProperty("IsPlayable", "true")
     return item
@@ -158,7 +193,7 @@ def _browse(client, cache, target_url, refresh=False):
 
 def _menu_item(label, route, is_folder=True):
     item = xbmcgui.ListItem(label=label)
-    item.setInfo("video", {"title": label})
+    _set_video_info(item, label)
     return route, item, is_folder
 
 
@@ -225,6 +260,7 @@ def _search(client, media_type, query, node_urls):
                 results.extend((node_id, entry) for entry in future.result())
             except PortalError as error:
                 errors.append(f"Node {node_id}: {error}")
+                _log(errors[-1], xbmc.LOGWARNING)
 
     unique = {}
     for node_id, entry in results:
@@ -235,20 +271,20 @@ def _search(client, media_type, query, node_urls):
         key=lambda result: (result[1].name.casefold(), result[0]),
     ):
         item = _list_item(entry)
-        item.setInfo(
-            "video",
-            {
-                "title": entry.name,
-                "mediatype": "video",
-                "studio": f"DhakaFlix node {node_id}",
-            },
+        _set_video_info(
+            item,
+            entry.name,
+            mediatype="video",
+            studio=f"DhakaFlix node {node_id}",
         )
         items.append((_route_url("play", entry.url), item, False))
 
     _finish_directory(items)
     if errors:
-        details = "\n".join(errors)
-        _notify_error("Some search sources could not be reached", details)
+        if items:
+            _notify("Some search sources could not be reached")
+        else:
+            _notify(f"Search failed: {errors[0]}")
     elif not items:
         _notify("No matching videos found")
 
@@ -257,7 +293,7 @@ def _play(target_url):
     item = xbmcgui.ListItem(path=target_url)
     item.setPath(target_url)
     title = unquote(urlsplit(target_url).path.rsplit("/", 1)[-1])
-    item.setInfo("video", {"title": title})
+    _set_video_info(item, title)
     item.setProperty("IsPlayable", "true")
     xbmcplugin.setResolvedUrl(HANDLE, True, item)
 
@@ -271,7 +307,7 @@ def main():
             excluded_keywords=exclusions,
             timeout=timeout,
             user_agent="Kodi DhakaFlix plugin/{}".format(ADDON.getAddonInfo("version")),
-            warning_callback=_notify,
+            warning_callback=lambda message: _log(message, xbmc.LOGWARNING),
             allowed_origins=(origin_url, *node_urls.values()),
         )
         cache = _cache(cache_ttl)
@@ -307,12 +343,16 @@ def main():
         else:
             raise RouteError("Unsupported action")
     except (PortalError, RouteError, ValueError, SyncRequestError) as error:
+        _log(str(error), xbmc.LOGERROR)
         _notify_error(str(error))
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False, cacheToDisc=False)
     except Exception as error:  # noqa: BLE001
+        _log(
+            f"Unexpected add-on error: {error}\n{traceback.format_exc()}",
+            xbmc.LOGERROR,
+        )
         _notify_error(
-            "Unexpected add-on error",
-            f"{error}\n\n{traceback.format_exc()}",
+            "An unexpected error occurred. Check the Kodi log for details."
         )
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False, cacheToDisc=False)
 

@@ -78,6 +78,7 @@ class _H5AIParser(HTMLParser):
         self.rows = []
         self.has_listing_marker = False
         self.links = []
+        self.page_text = []
         self._row = None
         self._cell = None
         self._anchor = None
@@ -106,6 +107,8 @@ class _H5AIParser(HTMLParser):
             }
 
     def handle_data(self, data):
+        if self._row is None and self._anchor is None:
+            self.page_text.append(data)
         if self._anchor is not None:
             self._anchor["text"].append(data)
         if self._row is not None and self._cell == "fb-d":
@@ -189,7 +192,7 @@ def parse_directory(html_text, base_url, excluded_keywords=(), strict=False):
         ]
 
     if strict:
-        lowered_html = html_text.casefold()
+        page_text = " ".join(parser.page_text).casefold()
         failure_markers = (
             "access denied",
             "authentication required",
@@ -201,9 +204,13 @@ def parse_directory(html_text, base_url, excluded_keywords=(), strict=False):
             "temporarily unavailable",
             "too many requests",
         )
-        if any(marker in lowered_html for marker in failure_markers):
+        if any(marker in page_text for marker in failure_markers):
             raise ValueError("The response looks like an access, challenge, or error page")
-        if not parser.rows and not any(candidates) and not parser.has_listing_marker:
+        if (
+            not parser.rows
+            and not any(candidates)
+            and not parser.has_listing_marker
+        ):
             raise ValueError("The response does not contain a recognized directory listing")
     excluded = tuple(word.casefold() for word in excluded_keywords if word)
     for entry in candidates:

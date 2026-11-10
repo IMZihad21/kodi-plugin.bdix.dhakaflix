@@ -32,20 +32,32 @@ msgctxt "#30008"
 msgid "Maximum wait for a directory page response."
 msgstr ""
 
+msgctxt "#30010"
+msgid "DhakaFlix node 7 URL"
+msgstr ""
+
+msgctxt "#30011"
+msgid "DhakaFlix node 10 URL"
+msgstr ""
+
+msgctxt "#30012"
+msgid "DhakaFlix node 12 URL"
+msgstr ""
+
+msgctxt "#30013"
+msgid "DhakaFlix node 14 URL"
+msgstr ""
+
+msgctxt "#30014"
+msgid "Base URL for this DhakaFlix node. Leave blank to disable its categories and search."
+msgstr ""
+
 msgctxt "#30015"
-msgid "Kodi library"
-msgstr ""
-
-msgctxt "#30016"
-msgid "I have configured content and scrapers for the sync sources I enabled"
-msgstr ""
-
-msgctxt "#30017"
-msgid "After restarting Kodi, configure each source you enabled for sync, then enable this option."
+msgid "Sync"
 msgstr ""
 
 msgctxt "#30018"
-msgid "Browsing"
+msgid "Discovery"
 msgstr ""
 
 msgctxt "#30019"

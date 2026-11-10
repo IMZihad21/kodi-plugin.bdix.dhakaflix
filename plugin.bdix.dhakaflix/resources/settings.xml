@@ -2,7 +2,29 @@
 <settings version="1">
   <section id="plugin.bdix.dhakaflix">
     <category id="general" label="30000" help="30000">
-      <group id="browsing" label="30018">
+      <group id="sync" label="30015">
+        <setting id="sync_movies"
+                 type="boolean"
+                 label="30019"
+                 help="30020">
+          <level>0</level>
+          <default>true</default>
+          <control type="toggle">
+            <heading>30019</heading>
+          </control>
+        </setting>
+        <setting id="sync_series"
+                 type="boolean"
+                 label="30021"
+                 help="30022">
+          <level>0</level>
+          <default>false</default>
+          <control type="toggle">
+            <heading>30021</heading>
+          </control>
+        </setting>
+      </group>
+      <group id="discovery" label="30018">
         <setting id="excluded_keywords"
                  type="string"
                  label="30003"
@@ -36,36 +58,36 @@
             <heading>30007</heading>
           </control>
         </setting>
-      </group>
-      <group id="library" label="30015">
-        <setting id="sync_movies"
-                 type="boolean"
-                 label="30019"
-                 help="30020">
+        <setting id="server_7_url" type="string" label="30010" help="30014">
           <level>0</level>
-          <default>true</default>
-          <control type="toggle">
-            <heading>30019</heading>
+          <default>http://172.16.50.7/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30010</heading>
           </control>
         </setting>
-        <setting id="sync_series"
-                 type="boolean"
-                 label="30021"
-                 help="30022">
+        <setting id="server_10_url" type="string" label="30011" help="30014">
           <level>0</level>
-          <default>false</default>
-          <control type="toggle">
-            <heading>30021</heading>
+          <default>http://172.16.50.10/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30011</heading>
           </control>
         </setting>
-        <setting id="library_sources_configured"
-                 type="boolean"
-                 label="30016"
-                 help="30017">
+        <setting id="server_12_url" type="string" label="30012" help="30014">
           <level>0</level>
-          <default>false</default>
-          <control type="toggle">
-            <heading>30016</heading>
+          <default>http://172.16.50.12/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30012</heading>
+          </control>
+        </setting>
+        <setting id="server_14_url" type="string" label="30013" help="30014">
+          <level>0</level>
+          <default>http://172.16.50.14/</default>
+          <constraints><allowempty>true</allowempty></constraints>
+          <control type="edit" format="string">
+            <heading>30013</heading>
           </control>
         </setting>
       </group>

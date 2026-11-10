@@ -133,20 +133,30 @@ class KodiEntrypointTests(unittest.TestCase):
             "excluded_keywords": "",
             "cache_ttl": "0",
             "request_timeout": "3",
+            "server_7_url": "http://172.16.50.7/",
+            "server_10_url": "http://172.16.50.10/",
+            "server_12_url": "http://172.16.50.12/",
+            "server_14_url": "http://172.16.50.14/",
         }
         self.items = []
         self.resolved = []
         self.end_calls = []
+        self.notifications = []
         self.error_dialogs = []
+        self.logs = []
         xbmc = types.ModuleType("xbmc")
         xbmc.Keyboard = _Keyboard
+        xbmc.LOGINFO = 1
+        xbmc.LOGWARNING = 2
+        xbmc.LOGERROR = 3
+        xbmc.log = lambda message, level=1: self.logs.append((message, level))
         xbmcaddon = types.ModuleType("xbmcaddon")
         xbmcaddon.Addon = _Addon
         xbmcgui = types.ModuleType("xbmcgui")
         xbmcgui.ListItem = _ListItem
         xbmcgui.Keyboard = _Keyboard
         xbmcgui.Dialog = lambda: types.SimpleNamespace(
-            notification=lambda *args: None,
+            notification=lambda *args: self.notifications.append(args),
             ok=lambda *args: self.error_dialogs.append(args),
         )
         xbmcplugin = types.ModuleType("xbmcplugin")
@@ -182,7 +192,13 @@ class KodiEntrypointTests(unittest.TestCase):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             if node_urls is not None:
-                module.NODE_URLS = node_urls
+                setting_urls = {
+                    node["setting"]: node_urls.get(node_id, "")
+                    for node_id, node in module.NODES.items()
+                }
+                module.ADDON.getSetting = lambda name: setting_urls.get(
+                    name, _Addon.values.get(name, "")
+                )
             module.main()
             return module
 
@@ -281,7 +297,7 @@ class KodiEntrypointTests(unittest.TestCase):
         self.assertTrue(request_path.is_file())
         self.assertTrue(self.end_calls[-1]["succeeded"])
 
-    def test_portal_url_is_not_user_configurable(self):
+    def test_portal_url_stays_fixed_while_nodes_are_configurable(self):
         module = self._invoke("")
         origin_url, _, _, _, node_urls = module._settings()
 
@@ -295,6 +311,53 @@ class KodiEntrypointTests(unittest.TestCase):
                 "14": "http://172.16.50.14/",
             },
         )
+
+    def test_node_urls_can_be_overridden_without_a_portal_url_setting(self):
+        module = self._invoke(
+            "",
+            node_urls={
+                "7": self.origin + "/",
+                "10": "",
+                "12": self.origin + "/",
+                "14": "",
+            },
+        )
+        origin_url, _, _, _, node_urls = module._settings()
+
+        self.assertEqual(origin_url, "http://172.16.50.7/")
+        self.assertEqual(
+            node_urls,
+            {
+                "7": self.origin + "/",
+                "10": "",
+                "12": self.origin + "/",
+                "14": "",
+            },
+        )
+
+    def test_partial_search_failure_notifies_without_modal_error_dialog(self):
+        _Keyboard.confirmed = True
+        _Keyboard.text = "Film"
+        self.addCleanup(setattr, _Keyboard, "confirmed", False)
+        self.addCleanup(setattr, _Keyboard, "text", "")
+        self._invoke(
+            "?action=search&type=movie",
+            node_urls={
+                "7": self.origin + "/",
+                "10": "",
+                "12": "",
+                "14": "http://127.0.0.1:1/",
+            },
+        )
+        self.assertEqual(len(self.items), 1)
+        self.assertEqual(self.error_dialogs, [])
+        self.assertTrue(
+            any(
+                "Some search sources could not be reached" in note[1]
+                for note in self.notifications
+            )
+        )
+        self.assertTrue(any("Node 14:" in msg for msg, _ in self.logs))
 
 
 if __name__ == "__main__":

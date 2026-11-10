@@ -52,8 +52,13 @@ class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.notifications = []
         self.error_dialogs = []
+        self.logs = []
         xbmc = types.ModuleType("xbmc")
         xbmc.Monitor = _Monitor
+        xbmc.LOGINFO = 1
+        xbmc.LOGWARNING = 2
+        xbmc.LOGERROR = 3
+        xbmc.log = lambda message, level=1: self.logs.append((message, level))
         self.builtins = []
         xbmc.executebuiltin = lambda *args: self.builtins.append(args[0])
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -228,7 +233,6 @@ class ServiceTests(unittest.TestCase):
                 "tv": str(Path(library_dir) / "TV Shows"),
             }
             self.service._ensure_sources = mock.Mock(return_value=False)
-            self.service._content_is_configured = mock.Mock(return_value=True)
             sync_result = SyncResult(
                 True,
                 18,
@@ -318,7 +322,6 @@ class ServiceTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as library_dir:
             self.service._ensure_sources = mock.Mock(return_value=False)
-            self.service._content_is_configured = mock.Mock(return_value=True)
             self.service._begin_library_refresh = mock.Mock()
             with mock.patch.object(self.service, "run_sync", return_value=result):
                 self.service._perform_sync(
@@ -376,6 +379,69 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(self.service._read_state(library_dir), {})
             self.assertFalse(path.exists())
             self.assertTrue(Path(str(path) + ".corrupt").is_file())
+
+    def test_ensure_sources_registers_paths_in_sources_xml(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            profile_dir = Path(temp_dir) / "profile"
+            profile_dir.mkdir(parents=True)
+            sources_path = profile_dir / "sources.xml"
+
+            def translate_path(value):
+                if value == "special://profile/sources.xml":
+                    return str(sources_path)
+                return str(profile_dir)
+
+            self.service.xbmcvfs.translatePath = translate_path
+            paths = self.service.library_paths(str(profile_dir))
+            library_dir = paths["state"]
+            state = {}
+
+            changed = self.service._ensure_sources(library_dir, paths, state)
+
+            self.assertTrue(changed)
+            self.assertTrue(Path(paths["movies"]).is_dir())
+            self.assertTrue(Path(paths["tv"]).is_dir())
+            self.assertTrue(sources_path.is_file())
+            self.assertFalse(
+                self.service._ensure_sources(library_dir, paths, state)
+            )
+
+    def test_registered_source_refresh_resumes_after_restart_without_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            profile_dir = Path(temp_dir) / "profile"
+            profile_dir.mkdir(parents=True)
+            paths = self.service.library_paths(str(profile_dir))
+            sources_path = profile_dir / "sources.xml"
+            for key in ("movies", "tv"):
+                Path(paths[key]).mkdir(parents=True)
+            self.service.register_sources(
+                str(sources_path),
+                paths["movies"],
+                paths["tv"],
+            )
+            self.service.xbmcvfs.translatePath = lambda value: (
+                str(sources_path) if value == "special://profile/sources.xml"
+                else str(profile_dir)
+            )
+            library_dir = paths["state"]
+            state = {"registration_restart_pending": True, "last_success": 1}
+            self.service._write_state(library_dir, state)
+
+            self.assertFalse(self.service._ensure_sources(library_dir, paths, state))
+            self.service._resume_pending_refresh(
+                library_dir,
+                paths,
+                resume_existing=True,
+            )
+
+            self.assertEqual(
+                self.builtins,
+                [f'UpdateLibrary(video,"{paths["movies"]}")'],
+            )
+            self.assertEqual(
+                self.service._read_state(library_dir)["library_refresh"]["active"],
+                paths["movies"],
+            )
 
 
 if __name__ == "__main__":

@@ -67,6 +67,14 @@ class LibraryPathTests(unittest.TestCase):
                 names,
                 ["Existing", "DhakaFlix Movies", "DhakaFlix TV Shows"],
             )
+            self.assertEqual(
+                root.find("./video/source[name='DhakaFlix Movies']/path").text,
+                os.path.abspath(movies),
+            )
+            self.assertEqual(
+                root.find("./video/source[name='DhakaFlix TV Shows']/path").text,
+                os.path.abspath(tv),
+            )
             self.assertIsNotNone(root.find("./music/source[name='Music']"))
             self.assertFalse(register_sources(sources_path, movies, tv))
 
@@ -89,6 +97,44 @@ class LibraryPathTests(unittest.TestCase):
             self.assertTrue(enqueue_manual_sync(directory))
             self.assertFalse(enqueue_manual_sync(directory))
             self.assertTrue(Path(directory, "sync.request").is_file())
+
+    def test_registration_rejects_conflicting_dhakaflix_source_without_overwriting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sources_path = os.path.join(directory, "sources.xml")
+            original = (
+                "<sources><video><source>"
+                "<name>DhakaFlix Movies</name><path>/old/path/Movies</path>"
+                "</source></video></sources>"
+            )
+            Path(sources_path).write_text(original, encoding="utf-8")
+            movies = os.path.join(directory, "library", "Movies")
+            tv = os.path.join(directory, "library", "TV Shows")
+
+            with self.assertRaisesRegex(SourceRegistrationError, "different path"):
+                register_sources(sources_path, movies, tv)
+            self.assertEqual(Path(sources_path).read_text(encoding="utf-8"), original)
+            self.assertFalse(Path(sources_path + ".dhakaflix.bak").exists())
+
+    def test_registration_preserves_extra_paths_on_matching_named_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            movies = os.path.join(directory, "library", "Movies")
+            tv = os.path.join(directory, "library", "TV Shows")
+            sources_path = os.path.join(directory, "sources.xml")
+            Path(sources_path).write_text(
+                "<sources><video><source><name>DhakaFlix Movies</name>"
+                f"<path>{os.path.abspath(movies)}</path>"
+                "<path>/user/added/path</path></source></video></sources>",
+                encoding="utf-8",
+            )
+
+            self.assertTrue(register_sources(sources_path, movies, tv))
+            root = ET.parse(sources_path).getroot()
+            movie_source = root.find("./video/source[name='DhakaFlix Movies']")
+            self.assertEqual(
+                [path.text for path in movie_source.findall("path")],
+                [os.path.abspath(movies), "/user/added/path"],
+            )
+            self.assertFalse(register_sources(sources_path, movies, tv))
 
 
 if __name__ == "__main__":

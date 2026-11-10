@@ -18,9 +18,9 @@ settings schema on the older Kodi release.
 1. Kodi invokes the add-on root route.
 2. The add-on shows generic portal browsing, curated movie/series categories,
    search, and settings.
-3. Category shortcuts use the fixed DHAKA-FLIX server addresses; generic
-   browsing discovers links dynamically from the selected page.
-4. Search queries relevant fixed servers concurrently, validates and
+3. Category shortcuts use configured DHAKA-FLIX node URLs; generic browsing
+   discovers links dynamically from the fixed portal root.
+4. Search queries configured relevant nodes concurrently, validates and
    deduplicates supported video links, and reports partial source failures.
 5. Selecting a folder fetches and parses that page on demand.
 6. Selecting a video creates a playable `ListItem` whose path is the resolved
@@ -64,12 +64,15 @@ settings schema on the older Kodi release.
 6. The service creates and verifies both library root directories, then
    registers those roots in Kodi's `sources.xml`, preserving other sources and
    keeping a backup. A changed file triggers a restart-required notification;
-   scans wait until a later Kodi startup.
-7. Kodi still needs a one-time GUI content/scraper setup for each source. The
-   user confirms this in add-on settings; after every complete sync, the
-   service automatically scans Movies and TV Shows in sequence. If content
-   setup is not confirmed yet, it queues the refresh until confirmation. A
-   successful prune does not trigger Kodi's global video-library clean.
+   scans resume on the next Kodi startup.
+7. After every complete sync, the service automatically scans Movies and TV
+   Shows in sequence. A successful prune does not trigger Kodi's global
+   video-library clean.
+
+The add-on settings are grouped into **Sync** (movie and series selection) and
+**Discovery** (node URLs, listing exclusions, cache duration, and request
+timeout). Node URL settings affect browsing and search only; sync uses its own
+fixed portal sources. Metadata scraper selection remains under Kodi's control.
 
 The add-on does not download media content for browsing or synchronization.
 
@@ -140,17 +143,14 @@ External subtitle behavior depends on the selected Kodi player and source
 format. Validate it on real target devices before adding custom subtitle
 download logic.
 
-## Settings
+## Add-on settings
 
 Expose user settings through Kodi's settings API:
 
-- Movie library sync, enabled by default.
-- TV/series library sync, disabled by default.
-- Excluded category keywords.
-- Listing cache duration.
-- Request timeout for slow source nodes.
-- Confirmation that the user has configured Kodi content types and scrapers
-  for the enabled sync sources.
+- **Sync:** movie sync, enabled by default, and TV/series sync, disabled by
+  default.
+- **Discovery:** excluded category keywords, listing cache duration, and
+  request timeout for slow source nodes.
 
 Sync media-type settings filter discovered categories before crawling. When a
 previously enabled type is disabled, its managed entries are pruned on a
@@ -158,7 +158,7 @@ complete sync if at least one selected media item remains. Empty crawls
 continue to preserve existing library data.
 
 The generic directory browser and curated multi-node categories/search are both
-available from the add-on home menu. The portal and server URLs are hardcoded.
+available from the add-on home menu. The portal root is fixed.
 Sync category links are discovered from the portal homepage; curated
 browsing/search paths remain based on observed node layouts. Both behaviors
 must be checked against the live BDIX service.
@@ -210,6 +210,8 @@ Kodi-device reachability is a deployment requirement.
 Kodi's documentation recommends managing media sources through the GUI rather
 than editing `sources.xml`. Automatic registration is intentionally attempted
 for this project, but is unsupported and must be validated on each target
-platform/version. The one-time content type and scraper setup remains a Kodi
-GUI step. A global video-library clean can remove other missing library items
-and is deliberately not requested after this add-on prunes stale entries.
+platform/version. Kodi scraper selection remains optional and under Kodi's
+control for metadata. The add-on registers paths and requests scans without a
+separate setup confirmation. A global video-library clean can remove other
+missing library items and is deliberately not requested after this add-on
+prunes stale entries.

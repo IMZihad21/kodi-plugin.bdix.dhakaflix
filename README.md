@@ -59,7 +59,7 @@ not upgrade the old ID in place.
 If installing from a network share, first add it under **Settings → File
 manager → Add source**, then select that source in step 5.
 
-### 4. Complete first-time library setup
+### 4. Let the initial sync finish
 
 The add-on service automatically starts a full sync only for a fresh add-on
 profile. It allows up to three attempts, retrying on later Kodi startups after
@@ -74,23 +74,11 @@ generates local `.strm` files, creates and validates separate Movies and TV
 Shows folders, then registers those paths in Kodi's `sources.xml`. A persistent
 background progress dialog shows crawl activity.
 
-When notified that a restart is required, restart Kodi so it loads the new
-sources. Content types and scrapers still need a one-time Kodi GUI setup:
-
-1. In Kodi, open **Videos → Files** and select **DhakaFlix Movies**.
-2. Set its content to **Movies**, choose a scraper, enable the movie-folder
-   option if appropriate, and enable recursive scanning for category folders.
-3. Repeat for **DhakaFlix TV Shows**, setting its content to **TV Shows** and
-   choosing a TV scraper.
-4. Open add-on settings and enable **I have configured DhakaFlix Movies and TV
-   Shows content** after configuring the source content/scrapers you want Kodi
-   to scan.
-5. From **Add-ons → Video add-ons → DhakaFlix**, choose **Sync DhakaFlix library
-   now** for a manual sync.
-
-After a complete sync, DhakaFlix automatically asks Kodi to scan the Movies
-and TV Shows sources. The scan starts once the one-time content/scraper setup
-has been confirmed in add-on settings.
+If Kodi reports that a restart is required after source registration, restart
+Kodi to load the new paths. After each complete sync, the add-on automatically
+asks Kodi to scan the Movies and TV Shows folders. Metadata scraper selection
+remains under Kodi's control and is not required for directory browsing or
+playback.
 
 Automatic source registration edits Kodi's `sources.xml`, although Kodi's
 documentation recommends managing sources through its GUI. Before changing
@@ -107,14 +95,15 @@ entries for removed `.strm` files until the library is cleaned separately.
 
 Open **Add-ons → My add-ons → Video add-ons → DhakaFlix → Configure**.
 
-- Under **Kodi library**, **Sync movies** is enabled by default and **Sync TV
+- Under **Sync**, **Sync movies** is enabled by default and **Sync TV
   series** is disabled. Enable either or both to choose what library sync
   includes. Disabling a type removes its managed `.strm` entries on a complete
   sync when other selected media remain; Kodi may retain stale database rows.
-- The DhakaFlix portal and DHAKA-FLIX-7/10/12/14 server addresses are fixed
-  for this add-on.
-- **Excluded keywords**, cache duration, and request timeout can be adjusted
-  here.
+- Under **Discovery**, excluded keywords, listing cache duration, and request
+  timeout can be adjusted; each node URL can also be changed or left blank to
+  disable that node's categories and search.
+- The portal root and library-sync source URLs remain fixed; node URL settings
+  affect browsing, categories, and search only.
 
 The sync discovers current movie and TV/series links from the portal homepage.
 Documentaries, wrestling, awards shows, games, software, and tutorials are
@@ -196,11 +185,11 @@ git push origin v0.3.0
 ## Troubleshooting
 
 - **Portal or categories do not load:** confirm the Kodi device (not just your
-  development computer) can reach the fixed `172.16.50.x` portal and server
-  addresses over your BDIX/LAN connection. Try **Refresh listing** from a
-  folder's context menu.
+  development computer) can reach the portal and configured node addresses
+  over your BDIX/LAN connection. Try **Refresh listing** from a folder's
+  context menu.
 - **Some search results are missing:** one or more nodes may be unreachable;
-  check connectivity to the fixed server addresses and Kodi's log.
+  check the configured node URLs and Kodi's log.
 - **A video does not start:** confirm that the media-node URL is reachable
   directly from Kodi. Playback is not relayed through another computer.
 - **Need the log:** use Kodi's **Settings → System → Logging** to enable debug

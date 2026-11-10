@@ -9,21 +9,25 @@ PORTAL_URL = "http://172.16.50.7/"
 NODES = {
     "7": {
         "url": "http://172.16.50.7/",
+        "setting": "server_7_url",
         "server_name": "DHAKA-FLIX-7",
         "search_types": ("movie",),
     },
     "10": {
         "url": "http://172.16.50.10/",
+        "setting": "server_10_url",
         "server_name": "DHAKA-FLIX-10",
         "search_types": ("series",),
     },
     "12": {
         "url": "http://172.16.50.12/",
+        "setting": "server_12_url",
         "server_name": "DHAKA-FLIX-12",
         "search_types": ("series",),
     },
     "14": {
         "url": "http://172.16.50.14/",
+        "setting": "server_14_url",
         "server_name": "DHAKA-FLIX-14",
         "search_types": ("movie", "series"),
     },

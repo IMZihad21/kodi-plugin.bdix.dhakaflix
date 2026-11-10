@@ -29,9 +29,8 @@ Python package is part of the planned add-on runtime.
 5. Test first-run source registration and restart notification on the target
    Kodi profile. Verify existing sources are preserved and the `.dhakaflix.bak`
    backup is usable.
-6. Configure Movies and TV Shows content types/scrapers in Kodi, enable the
-   add-on's source-configuration confirmation setting, then test startup and
-   manual sync.
+6. Verify that source registration in `sources.xml` survives a Kodi restart and
+   that completed syncs trigger library scans.
 7. Inspect Kodi's log after syncing, scanning, cleaning, browsing, and playing
    a sample item.
 8. Build the installable ZIP:
@@ -93,7 +92,7 @@ live portal.
 
 - Add-on installs and opens without a traceback.
 - First install registers both roots and notifies that Kodi must restart.
-- Restart loads the roots; one-time source content/scraper configuration works.
+- Restart loads the registered roots and completed syncs trigger library scans.
 - A fresh profile gets one automatic initial sync with at most three startup
   attempts; add-on updates do not auto-sync. Manual sync has no cooldown and
   never overlaps an active sync.
@@ -128,9 +127,9 @@ validated in a real Kodi runtime or against the live private portal.
   add-on profile and confirm the Kodi device can reach the portal homepage.
 - **Sources need a restart:** restart Kodi after the add-on reports a
   `sources.xml` change; Kodi reads source configuration at startup.
-- **Library remains empty:** confirm that each source's Movies/TV Shows
-  content, scraper, and recursive scanning options were configured in Kodi,
-  then enable the add-on confirmation setting and run a manual sync.
+- **Library remains empty:** confirm sync completed, restart Kodi if source
+  paths were just registered, and check that the add-on's source paths appear
+  in Kodi's video sources.
 - **Sync failed or is incomplete:** read the detailed Kodi error dialog for
   the failing URL, filesystem path, or network error. Retry after correcting the
   reported issue.
