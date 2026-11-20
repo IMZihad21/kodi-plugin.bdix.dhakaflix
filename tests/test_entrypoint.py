@@ -227,8 +227,9 @@ class KodiEntrypointTests(unittest.TestCase):
         xbmcplugin.addSortMethod = lambda handle, method: self.sort_calls.append(
             (handle, method)
         )
-        xbmcplugin.addDirectoryItems = (
-            lambda handle, items, total=0: self.items.extend(
+
+        def add_directory_items(handle, items, total=0):
+            self.items.extend(
                 {
                     "handle": handle,
                     "url": url,
@@ -237,11 +238,13 @@ class KodiEntrypointTests(unittest.TestCase):
                 }
                 for url, item, is_folder in items
             )
-            or True
-        )
-        xbmcplugin.endOfDirectory = (
-            lambda handle, **kwargs: self.end_calls.append({"handle": handle, **kwargs})
-        )
+            return True
+
+        def end_of_directory(handle, **kwargs):
+            self.end_calls.append({"handle": handle, **kwargs})
+
+        xbmcplugin.addDirectoryItems = add_directory_items
+        xbmcplugin.endOfDirectory = end_of_directory
         xbmcplugin.setResolvedUrl = lambda *args: self.resolved.append(args)
         xbmcvfs = types.ModuleType("xbmcvfs")
         xbmcvfs.translatePath = lambda value: value

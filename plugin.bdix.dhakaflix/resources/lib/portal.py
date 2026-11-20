@@ -398,10 +398,7 @@ class PortalClient:
                 raise PortalError(
                     "Portal declared an unsupported text encoding"
                 ) from error
-            chunks = [
-                decoder.decode(chunk)
-                for chunk in _iter_decompressed(response)
-            ]
+            chunks = [decoder.decode(chunk) for chunk in _iter_decompressed(response)]
             chunks.append(decoder.decode(b"", final=True))
             reusable = True
             return "".join(chunks), final_url

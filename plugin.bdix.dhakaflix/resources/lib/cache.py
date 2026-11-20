@@ -61,9 +61,7 @@ def _delete_memory(key):
 
 def _clear_memory_for_directory(directory_abs):
     with _MEMORY_LOCK:
-        for cache_key in [
-            key for key in _MEMORY_CACHE if key[0] == directory_abs
-        ]:
+        for cache_key in [key for key in _MEMORY_CACHE if key[0] == directory_abs]:
             del _MEMORY_CACHE[cache_key]
 
 
@@ -138,10 +136,7 @@ class ListingCache:
             return None, "", "", False
 
         try:
-            with (
-                self._db_lock,
-                closing(self._connect(create=False)) as connection,
-            ):
+            with self._db_lock, closing(self._connect(create=False)) as connection:
                 row = connection.execute(
                     "SELECT fetched_at, etag, last_modified, payload "
                     "FROM listings WHERE url = ?",
@@ -208,10 +203,7 @@ class ListingCache:
 
         evicted_urls = []
         try:
-            with (
-                self._db_lock,
-                closing(self._connect(create=True)) as connection,
-            ):
+            with self._db_lock, closing(self._connect(create=True)) as connection:
                 with connection:
                     connection.execute(
                         "INSERT OR REPLACE INTO listings "
@@ -312,9 +304,7 @@ class ListingCache:
             ):
                 connection.execute("DELETE FROM listings WHERE url = ?", (url,))
         except (sqlite3.Error, OSError) as error:
-            raise CacheError(
-                f"Unable to invalidate listing cache: {error}"
-            ) from error
+            raise CacheError(f"Unable to invalidate listing cache: {error}") from error
 
     def clear(self):
         _clear_memory_for_directory(self.directory_abs)
@@ -327,9 +317,7 @@ class ListingCache:
                 ):
                     connection.execute("DELETE FROM listings")
             except (sqlite3.Error, OSError) as error:
-                raise CacheError(
-                    f"Unable to clear listing cache: {error}"
-                ) from error
+                raise CacheError(f"Unable to clear listing cache: {error}") from error
 
         if os.path.isdir(self.directory):
             for filename in os.listdir(self.directory):

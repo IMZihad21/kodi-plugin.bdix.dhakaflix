@@ -202,9 +202,7 @@ class PortalClientTests(unittest.TestCase):
 
     def test_search_returns_unique_video_files_from_configured_host_only(self):
         with PortalClient(self.base_url + "/") as client:
-            results = client.search_videos(
-                self.base_url, "DHAKA-FLIX-7", "Film (2026)"
-            )
+            results = client.search_videos(self.base_url, "DHAKA-FLIX-7", "Film (2026)")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].name, "Film (2026).mkv")
         self.assertEqual(
@@ -275,11 +273,7 @@ class PortalClientTests(unittest.TestCase):
             with self.assertRaisesRegex(PortalError, "unapproved"):
                 client.fetch_html(self.base_url + "/redirect-outside/")
             with self.assertRaisesRegex(PortalError, "unapproved"):
-                client.search_videos(
-                    self.base_url,
-                    "redirect-cross",
-                    "Film",
-                )
+                client.search_videos(self.base_url, "redirect-cross", "Film")
 
 
 if __name__ == "__main__":

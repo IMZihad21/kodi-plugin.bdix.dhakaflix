@@ -69,9 +69,7 @@ _SIZE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]{0,5})\s*$")
 _DATE_HMS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$")
 _DATE_HM_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$")
 _DATE_ONLY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
-_EPISODE_RE = re.compile(
-    r"(?i)(?:^|[\s._\-\[(])S(\d{1,2})E(\d{1,3})(?:$|[\s._\-\])])"
-)
+_EPISODE_RE = re.compile(r"(?i)(?:^|[\s._\-\[(])S(\d{1,2})E(\d{1,3})(?:$|[\s._\-\])])")
 _BRACKETED_YEAR_RE = re.compile(r"[\[(]((?:19|20)\d{2})[\])]")
 _YEAR_RE = re.compile(r"(?:^|[\s._\-\[(])((?:19|20)\d{2})(?:$|[\s._\-\])])")
 
@@ -403,9 +401,7 @@ class DirectoryStreamParser:
             ]
         else:
             candidates = [
-                _entry(name, href, self.base_url)
-                for href, name in parser.links
-                if name
+                _entry(name, href, self.base_url) for href, name in parser.links if name
             ]
 
         if self.strict:
