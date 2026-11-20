@@ -17,19 +17,19 @@ NODES = {
         "url": "http://172.16.50.10/",
         "setting": "server_10_url",
         "server_name": "DHAKA-FLIX-10",
-        "search_types": ("series",),
+        "search_types": (),
     },
     "12": {
         "url": "http://172.16.50.12/",
         "setting": "server_12_url",
         "server_name": "DHAKA-FLIX-12",
-        "search_types": ("series",),
+        "search_types": (),
     },
     "14": {
         "url": "http://172.16.50.14/",
         "setting": "server_14_url",
         "server_name": "DHAKA-FLIX-14",
-        "search_types": ("movie", "series"),
+        "search_types": ("movie",),
     },
 }
 NODE_URLS = {node_id: node["url"] for node_id, node in NODES.items()}
@@ -85,12 +85,16 @@ def categories(media_type, node_urls):
 
 def search_nodes(media_type, node_urls):
     """Return configured nodes that support the requested search type."""
-    if media_type not in ("movie", "series"):
+    if media_type != "movie":
         raise ValueError("Unsupported search type")
     configured = []
     for node_id, node in NODES.items():
         if media_type in node["search_types"] and node_urls.get(node_id):
             configured.append(
-                (node_id, node["server_name"], normalize_http_url(node_urls[node_id]))
+                (
+                    node_id,
+                    node["server_name"],
+                    normalize_http_url(node_urls[node_id]),
+                )
             )
     return configured

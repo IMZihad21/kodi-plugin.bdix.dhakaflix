@@ -1,69 +1,35 @@
 # DhakaFlix for Kodi
 
-An unofficial Kodi video add-on and background service. It discovers movie
-and TV/series directories from the DhakaFlix portal and generates
-local `.strm` pointers to original media URLs. It does not download, proxy, or
-transcode media.
+An unofficial Kodi video add-on for browsing DhakaFlix `h5ai` listings,
+searching movies across configured nodes, and playing original media URLs
+directly in Kodi. It does not download, proxy, or transcode media, and does not
+create `.strm` library files or run a background service.
 
-## Library synchronization
+## Features
 
-The service automatically syncs once on a fresh add-on profile. It retries an
-unsuccessful or incomplete initial sync on later Kodi startups, up to three
-total attempts. Add-on updates do not trigger automatic sync. After the initial
-sync succeeds or retries are exhausted, use **Incremental library sync** to
-check changed folders or **Full library rescan** to revisit the entire selected
-catalog. Manual sync has no cooldown but will not overlap an active sync; a
-successful manual sync satisfies the initial sync.
+- **Generic portal browser:** browse from the fixed DhakaFlix portal root
+  (`http://172.16.50.7/`).
+- **Curated categories:** shortcuts for Movies (nodes 7 and 14) and TV & series
+  (nodes 10, 12, and 14).
+- **Movie search:** concurrent search across configured movie nodes with an
+  **Open parent folder** context menu action on each result.
+- **Direct playback:** streams the resolved media URL directly to Kodi with
+  Kodi 21 `InfoTagVideo` metadata, file sizes, adjacent matching subtitles, and
+  poster/cover artwork from the cached listing.
+- **Fast navigation & caching:** `<reuselanguageinvoker>`, HTTP/1.1 keep-alive
+  pooling, `gzip`/`deflate` compression, streaming HTML parsing, and a two-tier
+  RAM + SQLite listing cache (`listing_cache.sqlite`) supporting HTTP `304 Not
+  Modified` revalidation. Use **Refresh listing** or **Clear listing cache** to
+  invalidate cached pages.
 
-Generated Movies and TV Shows roots are stored below the add-on's Kodi profile.
-The service registers them in Kodi's `sources.xml`, preserves other sources,
-and backs up that file before changing it. If a Kodi restart is needed to load
-the new paths, the add-on notifies you. After each complete sync, Kodi is asked
-to scan both library roots.
+## Settings
 
-Metadata scrapers remain under Kodi's control. The add-on does not run Kodi's
-global video-library clean because that could remove unrelated missing items
-from the profile. Kodi may retain stale library database entries for removed
-`.strm` files until cleaned separately.
+Open **Settings** for the add-on to configure:
 
-Movies remain in Movies. All media discovered in TV/series categories goes
-under TV Shows, grouped by series and season where the portal structure allows.
-Documentaries, wrestling, awards shows, games, software, and tutorials are
-excluded from library sync. Distinct media URLs are retained, including
-alternate encodes. Kodi fetches media bytes from the original node when
-playing, so the Kodi device must reach each media node.
-
-Incremental sync checks changed folders. A full audit also runs automatically
-when at least seven days have elapsed since the previous full crawl; use **Full
-library rescan** to perform one sooner. Full audits reclassify existing entries,
-remove excluded media, and prune empty managed folders. The interval does not
-schedule a sync; after the initial sync attempts, start either action from the
-home menu.
-
-Library files and sync state are under the add-on profile's `library` folder
-(`special://profile/addon_data/plugin.bdix.dhakaflix/library`). The media and
-directory inventory is stored in `library.sqlite`; sync lifecycle status
-remains in `state.json`. Initial and qualifying seven-day full crawls reconcile
-the entire catalog; intervening syncs use h5ai directory dates to skip
-unchanged subtrees. Since h5ai dates are minute-resolution and not recursive,
-updates inside a skipped subtree may wait until a later full crawl. Crawls have
-no page, depth, media, category, duration, or directory-response-size caps;
-concurrency remains bounded.
-Detailed failures are shown in Kodi error dialogs.
-
-## Directory browsing
-
-The add-on retains generic portal browsing, curated movie/series categories,
-and search. The portal root is fixed. Excluded keywords, listing cache
-duration, request timeout, and individual node URLs are configurable in
-**Discovery** settings. Node URL settings affect browsing, categories, and
-search only; library sync uses its own fixed sources.
-
-In the add-on's **Sync** settings, **Sync movies** is on by default and **Sync
-TV series** is off. Turn on either or both to choose the categories included
-in library sync. Turning a type off removes its managed `.strm` files after a
-complete sync when other selected media remain. Discovery settings control
-excluded keywords, listing cache duration, and request timeout.
+- **Discovery:** excluded category keywords, listing cache duration (seconds;
+  `0` disables caching), and request timeout (seconds).
+- **DhakaFlix servers:** base URLs for nodes 7, 10, 12, and 14. Clear any node
+  URL to disable its categories and movie search.
 
 ## Development
 
@@ -75,5 +41,5 @@ python3 tools/package.py
 ```
 
 See the repository's `docs/` directory for detailed design and test guidance,
-and `PROJECT-HANDOFF.md` at the repository root for implementation context
-and outstanding release checks.
+and `PROJECT-HANDOFF.md` at the repository root for architecture context and
+release validation notes.

@@ -2,219 +2,132 @@
 
 ## Add-on identity
 
-Add-on ID: `plugin.bdix.dhakaflix`.
+Add-on ID: `plugin.bdix.dhakaflix` (`v0.5.0`).
 
-The add-on provides a standard Kodi Python plugin and a startup service. Kodi
-launches `default.py` for browsing and manual controls; `service.py` checks the
-last successful sync at startup and performs due or manually requested
-library synchronization in the background.
+The add-on is a pure on-demand Kodi Python video plugin (`default.py`) with
+`<reuselanguageinvoker>true</reuselanguageinvoker>` enabled for low-latency
+folder navigation and zero background service overhead.
 
-The add-on targets Kodi Omega 21.3 or later, requiring `xbmc.python` 3.0.1 and
-Python 3.11-compatible code. Keep the API requirement and syntax validator in
-sync with the minimum supported Kodi runtime.
+It targets Kodi Omega 21.3 or later, requiring `xbmc.python` 3.0.1 and Python
+3.11-compatible standard-library code.
 
-## Request and browse flow
+## Request, browse, and playback flow
 
-1. Kodi invokes the add-on root route.
-2. The add-on shows generic portal browsing, curated movie/series categories,
-   search, and settings.
-3. Category shortcuts use configured DHAKA-FLIX node URLs; generic browsing
-   discovers links dynamically from the fixed portal root.
-4. Search queries configured relevant nodes concurrently, validates and
-   deduplicates supported video links, and reports partial source failures.
-5. Selecting a folder fetches and parses that page on demand.
-6. Selecting a video creates a playable `ListItem` whose path is the resolved
-   origin URL, attaching adjacent matching subtitles when available.
-7. Kodi's player fetches the media directly from the source.
-
-## Library synchronization flow
-
-1. On a fresh add-on profile, the service starts one automatic full sync. If
-   the attempt fails or is incomplete, it retries on later Kodi startups, up
-   to three total attempts. Existing profiles are not automatically synced on
-   add-on update. Once the initial sync succeeds or retries are exhausted,
-   future syncs are manual only. The add-on home menu can queue a manual sync
-   at any time except while another sync is running; manual sync has no
-   cooldown. The home menu offers **Incremental library sync** to check changed
-   folders and **Full library rescan** to revisit the selected catalog. A
-   successful manual sync satisfies the initial sync. A background progress
-   dialog remains visible during the crawl.
-2. The sync fetches the fixed portal homepage, discovers current movie
-   and TV/series category links, and recursively traverses those h5ai listings
-   with bounded concurrency and no page, depth, media, category, duration, or
-   directory-response-size caps. Games, software, tutorials, documentaries,
-   wrestling, and awards shows are excluded from library sync. The initial sync
-   visits the complete catalog. Later syncs run a full audit when at least
-   seven days have elapsed since the previous full crawl; the interval does not
-   schedule a sync. **Incremental library sync** uses h5ai folder dates to skip
-   unchanged subtrees; **Full library rescan** always revisits all selected
-   categories and folders.
-3. Every video discovered under a TV/series category is placed under the TV
-   Shows root, grouped by inferred series and season folders. Other supported
-   videos are placed under Movies. Every distinct URL, including alternate
-   encodes, is retained.
-4. `.strm` files point to the source URLs; media bytes are not fetched for
-   import. Movies and TV Shows are written to separate roots in the add-on's
-   Kodi profile. Generated absolute paths are shortened with stable hash
-   suffixes when needed, and components are byte-limited for Windows, macOS,
-   and Linux filesystem compatibility.
-5. A complete crawl is required before stale index-owned files are pruned.
-   Category/directory failures leave the previous library generation intact.
-   A full audit reclassifies entries and successful pruning also removes empty
-   directories under the managed Movies and TV Shows roots. Kodi's global
-   library clean is not run, to avoid removing unrelated missing items; Kodi
-   may retain stale database entries for deleted `.strm` files.
-6. The service creates and verifies both library root directories, then
-   registers those roots in Kodi's `sources.xml`, preserving other sources and
-   keeping a backup. A changed file triggers a restart-required notification;
-   scans resume on the next Kodi startup.
-7. After every complete sync, the service automatically scans Movies and TV
-   Shows in sequence. A successful prune does not trigger Kodi's global
-   video-library clean.
-
-The add-on settings are grouped into **Sync** (movie and series selection) and
-**Discovery** (node URLs, listing exclusions, cache duration, and request
-timeout). Node URL settings affect browsing and search only; sync uses its own
-fixed portal sources. Metadata scraper selection remains under Kodi's control.
-
-The add-on does not download media content for browsing or synchronization.
+1. Kodi invokes `default.py` with fresh `sys.argv` (`base_url`, `handle`,
+   `query_string`). All request context is scoped per invocation; only
+   thread-safe `PortalClient` (keep-alive pool) and `ListingCache` (memory LRU +
+   SQLite) instances are reused across invoker calls and recreated whenever
+   settings change.
+2. The home menu exposes:
+   - **Browse DhakaFlix portal** (`http://172.16.50.7/`)
+   - **Movie categories** (nodes 7 and 14)
+   - **TV & series categories** (nodes 10, 12, and 14)
+   - **Search movies** (nodes 7 and 14)
+   - **Clear listing cache**
+   - **Add-on settings**
+3. Selecting a folder fetches or revalidates that listing on demand, batches
+   `offscreen=True` `ListItem` tuples via `xbmcplugin.addDirectoryItems`,
+   populates Kodi 21 `InfoTagVideo` fields and `label2` file sizes, and sets
+   unsorted/label/date sort methods.
+4. Selecting **Search movies** opens `xbmc.Keyboard`, queries configured movie
+   nodes concurrently over the h5ai JSON search API, deduplicates video URLs,
+   attaches **Open parent folder** context menus, caches the container to disc
+   across playback returns, and warns via notification on partial node failures.
+5. Selecting a video invokes the `play` route: after validating the target
+   origin, `_play` resolves the original URL via `xbmcplugin.setResolvedUrl`,
+   attaching matching adjacent subtitles, folder artwork, and metadata from the
+   cached parent listing without making extra HTTP requests.
 
 ## Module responsibilities
 
-- `default.py`: Kodi entry point, argument parsing, dispatch, and top-level
-  error presentation, including manual-sync requests.
-- `service.py`: startup scheduling, manual request processing, source
-  registration, Kodi scan/clean orchestration, and user notifications.
-- `router.py`: map safe plugin actions and URL parameters to operations.
-- `portal.py`: HTTP requests, response status/encoding handling, directory
-  fetching, and the h5ai JSON search API.
-- `catalog.py`: curated category paths and node-specific search support.
-- `sync.py`: Kodi-independent portal category discovery, bounded full and
-  incremental crawls, conservative media classification, and `.strm`
-  generation.
-- `library_index.py`: SQLite media/directory inventory and legacy manifest
-  migration.
-- `library.py`: local library paths, manual request queue, and atomic
-  `sources.xml` registration.
-- `parser.py`: convert portal HTML into typed category, directory, image, and
-  video entries.
-- `urls.py`: normalize and validate HTTP(S) URLs.
-- `cache.py`: TTL cache keyed by normalized absolute page URL; refresh bypasses
-  or deletes the selected key.
-- Kodi adapter code: construct folder/playable list items, set artwork and
-  content type, and call Kodi's directory or playback APIs.
+- `default.py`: Kodi entry point, per-invocation `_Context`, `reuselanguageinvoker`
+  client/cache management, UI rendering, and error presentation.
+- `router.py`: allowlisted Kodi plugin route construction and parsing (`root`,
+  `browse`, `play`, `refresh`, `settings`, `catalog`, `search`, `clear_cache`).
+- `portal.py`: thread-safe HTTP/HTTPS keep-alive `_ConnectionPool`, redirect and
+  origin validation, `gzip`/`deflate` decompression, streaming directory fetch
+  with HTTP `304 Not Modified` revalidation, and concurrent-ready movie search.
+- `cache.py`: two-tier cache (64-entry process LRU in memory + 500-entry
+  `listing_cache.sqlite`) storing parsed entries alongside `ETag` and
+  `Last-Modified` validators, supporting `touch`, `invalidate`, `clear`, and
+  legacy `.json` cache cleanup.
+- `parser.py`: streaming `HTMLParser` (`DirectoryStreamParser`) supporting
+  `h5ai` table rows (`fb-i`, `fb-n`, `fb-d`, `fb-s`) and generic `<a>`
+  fallback, O(1) extension classification, strict error/challenge detection,
+  file size formatting, Kodi date formatting, and conservative filename metadata
+  parsing.
+- `catalog.py`: fixed `PORTAL_URL`, node definitions (`7`, `10`, `12`, `14`),
+  curated movie/series shortcuts, and `search_nodes("movie", ...)`.
+- `urls.py`: LRU-cached host normalization, HTTP(S) URL validation,
+  `http_origin`, and `parent_directory_url`.
+- `config.py`: validated integer setting parsing.
 
-Keep the parser independent of Kodi imports so fixture-based tests can run
-outside Kodi.
+Keep all `resources/lib/` modules free of Kodi (`xbmc*`) imports so unit and
+local HTTP tests run directly on the host Python interpreter.
 
 ## HTML and URL handling
 
-- Prefer Python's standard-library `html.parser` over regular expressions for
-  extracting nested/quoted HTML attributes and text.
-- Support the observed `h5ai` table structure and a conservative generic
-  anchor fallback.
-- Decode HTML entities, trim display text, and resolve relative links against
-  the page URL.
-- Ignore parent-directory links, fragments, `javascript:` links, and
-  unsupported schemes.
-- Restrict fetched and playable URLs to HTTP or HTTPS. Do not follow links to
-  local files or unrelated schemes.
-- Determine directory status from `h5ai` icon/link metadata when available;
-  otherwise use a trailing slash as a fallback, not as the only signal.
-- Classify files using a tested allowlist of common video extensions. Keep
-  images and subtitle files as separate types.
-- Sort folders and files consistently while retaining source names for display
-  and playback diagnostics.
-- Apply exclusions to category labels and URLs, with defaults that omit games
-  and software while allowing users to change the list.
+- Parse HTML with Python's standard-library `html.parser` using streaming
+  incremental UTF-8/charset decoding directly into `DirectoryStreamParser`.
+- Skip `<script>` and `<style>` blocks when scanning strict-mode error markers
+  to avoid false positives from page scripts/styles.
+- Support `h5ai` table rows (`fb-i`, `fb-n`, `fb-d`, `fb-s`) and fall back to
+  generic `<a>` tags only when no `h5ai` rows are present.
+- Decode HTML entities, normalize whitespace, resolve relative links, and drop
+  parent links, fragments, `javascript:`, and non-HTTP(S) schemes.
+- Restrict fetched, redirected, and playable URLs to approved HTTP(S) server
+  origins without embedded credentials.
+- Classify files via O(1) extension lookup across allowlisted video, image, and
+  subtitle extensions, and sort deterministically folders-first.
+- Apply `excluded_keywords` and `allowed_origins` filtering dynamically after
+  cache retrieval so settings edits apply immediately.
 
 ## Playback and metadata
 
-Start with direct URL playback. Set a clear title and video media type on the
-Kodi `ListItem`; use the fully resolved absolute URL as the item path. Do not
-rewrite source URLs or redirect through a custom service.
-
-For folder-based movies and shows, preserve navigation first. Derive a clean
-title, year, season, or episode number only when the filename/folder pattern is
-unambiguous. Avoid fabricating metadata when parsing fails.
-
-Artwork should be optional: select likely poster files by filename preference
-and provide them as art only when a valid image URL is found. Kodi should still
-be able to browse and play if artwork is absent.
-
-External subtitle behavior depends on the selected Kodi player and source
-format. Validate it on real target devices before adding custom subtitle
-download logic.
+- Pass the resolved origin URL directly to Kodi via `setResolvedUrl`; never
+  proxy or transcode media bytes.
+- Populate Kodi 21 `InfoTagVideo` setters (`setTitle`, `setMediaType`,
+  `setYear`, `setSeason`, `setEpisode`, `setDateAdded`, `setStudios`) only from
+  unambiguous filename/timestamp tokens; fall back to `setInfo` only when
+  `getVideoInfoTag` is unavailable.
+- Display formatted file sizes in `ListItem.label2`.
+- Attach artwork and matching same-stem subtitles from both folder listings
+  and cached parent listings during `play` resolution.
 
 ## Add-on settings
 
-Expose user settings through Kodi's settings API:
-
-- **Sync:** movie sync, enabled by default, and TV/series sync, disabled by
-  default.
-- **Discovery:** excluded category keywords, listing cache duration, and
-  request timeout for slow source nodes.
-
-Sync media-type settings filter discovered categories before crawling. When a
-previously enabled type is disabled, its managed entries are pruned on a
-complete sync if at least one selected media item remains. Empty crawls
-continue to preserve existing library data.
-
-The generic directory browser and curated multi-node categories/search are both
-available from the add-on home menu. The portal root is fixed.
-Sync category links are discovered from the portal homepage; curated
-browsing/search paths remain based on observed node layouts. Both behaviors
-must be checked against the live BDIX service.
-
-Do not store credentials unless the origin adds authentication and a specific
-secure credential mechanism is designed.
+- **Discovery:** `excluded_keywords`, `cache_ttl` (seconds; `0` disables cache),
+  and `request_timeout` (3–60 seconds).
+- **DhakaFlix servers:** `server_7_url`, `server_10_url`, `server_12_url`, and
+  `server_14_url`. Clearing any node URL disables its curated categories and
+  movie search.
 
 ## Cache and refresh
 
-Cache parsed directory results by normalized page URL and expire them after the
-configured TTL. Cache only listings and lightweight metadata, not media bytes.
-
-A refresh action should invalidate the current page and reload it. The library
-sync is a distinct, user-triggered/startup background crawl with bounded
-concurrency and complete-versus-partial state, without crawl count, duration,
-or directory-response-size caps. It performs a full crawl
-when a sync runs after the seven-day interval and uses timestamp-based subtree
-skipping between those audits. After the initial sync/retries, the user must
-manually trigger syncs; the interval does not schedule them.
-
-h5ai displays directory modification times to the minute. These timestamps
-describe each directory's own entries; they do not propagate changes made
-deeper in the tree. Incremental updates are best-effort, and a change inside a
-skipped subtree may not be detected until a later full audit.
+- Cache unfiltered directory entries keyed by normalized absolute URL in memory
+  (LRU 64 entries) and `listing_cache.sqlite` (LRU 500 entries) along with
+  HTTP `ETag` and `Last-Modified` headers.
+- Expired cached entries remain eligible for conditional `If-None-Match` /
+  `If-Modified-Since` requests; on `304 Not Modified`, `ListingCache.touch()`
+  refreshes the TTL without re-downloading or re-parsing HTML.
+- Context-menu **Refresh listing** runs via Kodi `RunPlugin` (`handle = -1`),
+  invalidates the target URL in cache, and calls
+  `xbmc.executebuiltin("Container.Refresh")`. Direct `refresh` route calls
+  re-fetch and render the directory.
+- **Clear listing cache** clears both memory and SQLite entries and removes
+  legacy `<sha256>.json` cache files from the profile directory.
 
 ## Failure handling and diagnostics
 
-Handle network timeouts, DNS errors, non-success HTTP responses, unexpected
-content, and malformed entries explicitly. Present a short user-facing Kodi
-message and log the URL/status and failure detail to Kodi's log without
-including secrets.
-
-An empty but valid directory is different from a failed request. Preserve that
-distinction in the parser and UI behavior.
+- Report invalid settings, malformed routes, unapproved origins, HTTP errors,
+  corrupt caches, and unexpected content explicitly via Kodi error dialogs and
+  `xbmc.log` (`[plugin.bdix.dhakaflix]`).
+- Keep empty valid directories distinct from failed HTTP requests or error pages.
+- Degrade partial movie-search node failures to a non-blocking notification when
+  other nodes return results.
 
 ## Privacy and network assumptions
 
-The listed portal addresses are private-network addresses. A Kodi device must
-have a route to the ISP/LAN portal; internet connectivity alone may not be
-enough. Direct playback also requires the player device to reach the media
-node, not merely the device where a separate service might run.
-
-The add-on requests pages when the user browses or when an initial/manual
-library sync runs. It only accepts HTTP(S) URLs without embedded credentials;
-redirect targets are validated. Sync category and child-directory links are
-restricted to private-network addresses or the portal host. Actual
-Kodi-device reachability is a deployment requirement.
-
-Kodi's documentation recommends managing media sources through the GUI rather
-than editing `sources.xml`. Automatic registration is intentionally attempted
-for this project, but is unsupported and must be validated on each target
-platform/version. Kodi scraper selection remains optional and under Kodi's
-control for metadata. The add-on registers paths and requests scans without a
-separate setup confirmation. A global video-library clean can remove other
-missing library items and is deliberately not requested after this add-on
-prunes stale entries.
+- Portal and node defaults use private-network IP addresses (`172.16.50.*`)
+  requiring BDIX/LAN reachability directly from the Kodi playback device.
+- No credentials are stored or prompted unless source servers change.

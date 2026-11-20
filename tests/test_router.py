@@ -20,22 +20,21 @@ class RouterTests(unittest.TestCase):
             parsed.target_url, "http://172.16.50.7/Film%20(2026)%20%5BBD%5D.mkv"
         )
 
-    def test_requires_target_url_for_non_root_actions(self):
+    def test_requires_target_url_for_url_actions_and_rejects_elsewhere(self):
+        base = "plugin://plugin.bdix.dhakaflix/"
+        for action in ("browse", "play", "refresh"):
+            with self.subTest(action=action), self.assertRaises(RouteError):
+                parse_route(base, f"?action={action}")
         with self.assertRaises(RouteError):
-            parse_route("plugin://plugin.bdix.dhakaflix/", "?action=play")
+            parse_route(base, "?action=clear_cache&url=http://172.16.50.7/")
 
-    def test_rejects_unknown_action(self):
-        with self.assertRaises(RouteError):
-            parse_route("plugin://plugin.bdix.dhakaflix/", "?action=execute")
+    def test_rejects_unknown_and_removed_sync_actions(self):
+        base = "plugin://plugin.bdix.dhakaflix/"
+        for action in ("execute", "sync", "full_sync"):
+            with self.subTest(action=action), self.assertRaises(RouteError):
+                parse_route(base, f"?action={action}")
 
-    def test_accepts_full_sync_route(self):
-        route = parse_route(
-            "plugin://plugin.bdix.dhakaflix/",
-            "?action=full_sync",
-        )
-        self.assertEqual(route.action, "full_sync")
-
-    def test_round_trip_catalog_and_search_routes(self):
+    def test_round_trip_catalog_search_and_clear_cache_routes(self):
         base = "plugin://plugin.bdix.dhakaflix/"
         catalog = plugin_url(base, "catalog", media_type="series")
         self.assertEqual(
@@ -47,12 +46,21 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(route.action, "search")
         self.assertEqual(route.media_type, "movie")
 
+        clear_route = plugin_url(base, "clear_cache")
+        parsed_clear = parse_route(base, clear_route.split("?", 1)[1])
+        self.assertEqual(parsed_clear.action, "clear_cache")
+        self.assertEqual(parsed_clear.target_url, "")
+        self.assertEqual(parsed_clear.media_type, "")
+
     def test_rejects_search_route_without_type_or_inline_query(self):
         base = "plugin://plugin.bdix.dhakaflix/"
-        with self.assertRaises(RouteError):
-            parse_route(base, "?action=search&type=other")
+        for media_type in ("series", "all", "other"):
+            with self.subTest(media_type=media_type), self.assertRaises(RouteError):
+                parse_route(base, f"?action=search&type={media_type}")
         with self.assertRaises(RouteError):
             parse_route(base, "?action=search&type=movie&query=secret")
+        with self.assertRaises(RouteError):
+            parse_route(base, "?action=clear_cache&type=movie")
 
 
 if __name__ == "__main__":

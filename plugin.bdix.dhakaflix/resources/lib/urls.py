@@ -1,6 +1,7 @@
 """HTTP URL validation and normalization."""
 
 import ipaddress
+from functools import lru_cache
 from urllib.parse import quote, urlsplit, urlunsplit
 
 
@@ -15,6 +16,37 @@ def http_origin(url):
         80 if scheme == "http" else 443 if scheme == "https" else None
     )
     return scheme, (parts.hostname or "").casefold(), port
+
+
+@lru_cache(maxsize=256)
+def _normalize_host(host):
+    if any(char.isspace() or char in "\\/%" for char in host):
+        raise URLValidationError("URL host contains invalid characters")
+
+    try:
+        address = ipaddress.ip_address(host)
+        normalized_host = str(address)
+        if address.version == 6:
+            normalized_host = f"[{normalized_host}]"
+        return normalized_host
+    except ValueError:
+        pass
+
+    try:
+        normalized_host = host.encode("idna").decode("ascii").casefold()
+    except UnicodeError as error:
+        raise URLValidationError("URL host is malformed") from error
+    labels = normalized_host.rstrip(".").split(".")
+    if len(normalized_host) > 253 or any(
+        not label
+        or len(label) > 63
+        or label.startswith("-")
+        or label.endswith("-")
+        or not all(char.isalnum() or char == "-" for char in label)
+        for label in labels
+    ):
+        raise URLValidationError("URL host is malformed")
+    return normalized_host
 
 
 def normalize_http_url(url):
@@ -34,32 +66,24 @@ def normalize_http_url(url):
         raise URLValidationError("Only absolute HTTP and HTTPS URLs are allowed")
     if parts.username is not None or parts.password is not None:
         raise URLValidationError("URLs containing credentials are not allowed")
-    if any(char.isspace() or char in "\\/%" for char in host):
-        raise URLValidationError("URL host contains invalid characters")
 
-    try:
-        address = ipaddress.ip_address(host)
-        normalized_host = str(address)
-        if address.version == 6:
-            normalized_host = f"[{normalized_host}]"
-    except ValueError:
-        try:
-            normalized_host = host.encode("idna").decode("ascii").casefold()
-        except UnicodeError as error:
-            raise URLValidationError("URL host is malformed") from error
-        labels = normalized_host.rstrip(".").split(".")
-        if len(normalized_host) > 253 or any(
-            not label
-            or len(label) > 63
-            or label.startswith("-")
-            or label.endswith("-")
-            or not all(char.isalnum() or char == "-" for char in label)
-            for label in labels
-        ):
-            raise URLValidationError("URL host is malformed") from None
-    netloc = normalized_host
+    netloc = _normalize_host(host)
     if port is not None:
         netloc = f"{netloc}:{port}"
     path = quote(parts.path or "/", safe="/%:@!$&'()*+,;=-._~")
     query = quote(parts.query, safe="=&?/:;+,%@!$'()*-._~")
     return urlunsplit((scheme, netloc, path, query, ""))
+
+
+def parent_directory_url(url):
+    """Return the normalized parent directory URL for a file or folder URL."""
+    normalized = normalize_http_url(url)
+    parts = urlsplit(normalized)
+    path = parts.path or "/"
+    if path == "/":
+        parent_path = "/"
+    else:
+        trimmed = path.rstrip("/")
+        slash_index = trimmed.rfind("/")
+        parent_path = trimmed[: slash_index + 1] if slash_index >= 0 else "/"
+    return urlunsplit((parts.scheme, parts.netloc, parent_path, "", ""))

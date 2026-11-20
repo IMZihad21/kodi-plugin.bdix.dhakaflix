@@ -43,19 +43,19 @@ def validate():
         for extension in plugin_extensions
     ):
         raise ValueError("addon.xml must register default.py as a Kodi plugin source")
-    service_extensions = addon.findall("./extension[@point='xbmc.service']")
-    if not any(
-        extension.attrib.get("library") == "service.py"
-        for extension in service_extensions
-    ):
-        raise ValueError("addon.xml must register service.py as a Kodi service")
+    if addon.findall("./extension[@point='xbmc.service']"):
+        raise ValueError("addon.xml must not register a background service")
     if not (ADDON_DIR / "default.py").is_file():
         raise ValueError("Missing add-on entry point")
-    if not (ADDON_DIR / "service.py").is_file():
-        raise ValueError("Missing add-on service")
     if not (ADDON_DIR / "LICENSE").is_file():
         raise ValueError("Missing add-on license")
-    icon = addon.find("./extension[@point='xbmc.addon.metadata']/assets/icon")
+    metadata = addon.find("./extension[@point='xbmc.addon.metadata']")
+    if metadata is None:
+        raise ValueError("addon.xml is missing xbmc.addon.metadata")
+    invoker = metadata.find("reuselanguageinvoker")
+    if invoker is None or (invoker.text or "").strip().lower() != "true":
+        raise ValueError("addon.xml must enable reuselanguageinvoker")
+    icon = metadata.find("./assets/icon")
     if icon is None or not icon.text or not (ADDON_DIR / icon.text).is_file():
         raise ValueError("addon.xml must reference an existing icon asset")
 

@@ -16,11 +16,22 @@ sys.path.insert(0, str(ADDON_DIR))
 
 
 class _Handler(BaseHTTPRequestHandler):
+    requests = 0
+
     def do_POST(self):
+        type(self).requests += 1
         length = int(self.headers.get("Content-Length", "0"))
         json.loads(self.rfile.read(length).decode("utf-8"))
         body = json.dumps(
-            {"search": [{"href": "/DHAKA-FLIX-7/Film.mkv", "size": "1 GB"}]}
+            {
+                "search": [
+                    {
+                        "href": "/DHAKA-FLIX-7/Movies/Film%20(2026).mkv",
+                        "size": 1073741824,
+                        "time": 1767225600000,
+                    }
+                ]
+            }
         ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -29,11 +40,23 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        type(self).requests += 1
         body = (
-            b'<a href="folder/">Folder</a>'
-            b'<a href="film.mkv">Film.mkv</a>'
-            b'<a href="Film.en.srt">Film.en.srt</a>'
-            b'<a href="cover.jpg">cover.jpg</a>'
+            b'<div id="fallback"><table>'
+            b'<tr><td class="fb-i"><img src="folder.png"></td>'
+            b'<td class="fb-n"><a href="folder/">Folder</a></td>'
+            b'<td class="fb-d">2026-01-01 10:00</td><td class="fb-s">-</td></tr>'
+            b'<tr><td class="fb-i"><img src="file.png"></td>'
+            b'<td class="fb-n"><a href="film.mkv">Film (2026).mkv</a></td>'
+            b'<td class="fb-d">2026-01-02 12:30</td><td class="fb-s">1.4 GB</td></tr>'
+            b'<tr><td class="fb-i"><img src="file.png"></td>'
+            b'<td class="fb-n"><a href="Film%20(2026).en.srt">'
+            b"Film (2026).en.srt</a></td>"
+            b'<td class="fb-d"></td><td class="fb-s"></td></tr>'
+            b'<tr><td class="fb-i"><img src="file.png"></td>'
+            b'<td class="fb-n"><a href="cover.jpg">cover.jpg</a></td>'
+            b'<td class="fb-d"></td><td class="fb-s"></td></tr>'
+            b"</table></div>"
         )
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -45,21 +68,55 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
+class _VideoInfoTag:
+    def __init__(self):
+        self.title = ""
+        self.mediatype = ""
+        self.studios = []
+        self.year = None
+        self.season = None
+        self.episode = None
+        self.dateadded = ""
+
+    def setTitle(self, title):
+        self.title = title
+
+    def setMediaType(self, mediatype):
+        self.mediatype = mediatype
+
+    def setStudios(self, studios):
+        self.studios = list(studios)
+
+    def setYear(self, year):
+        self.year = year
+
+    def setSeason(self, season):
+        self.season = season
+
+    def setEpisode(self, episode):
+        self.episode = episode
+
+    def setDateAdded(self, dateadded):
+        self.dateadded = dateadded
+
+
 class _ListItem:
-    def __init__(self, label="", path=""):
+    def __init__(self, label="", label2="", path="", offscreen=False):
         self.label = label
+        self.label2 = label2
         self.path = path
+        self.offscreen = offscreen
         self.art = {}
-        self.info = {}
         self.properties = {}
         self.context_menu = []
         self.subtitles = []
+        self.video_tag = _VideoInfoTag()
+
+    def getVideoInfoTag(self):
+        return self.video_tag
 
     def setArt(self, art):
         self.art = art
-
-    def setInfo(self, kind, info):
-        self.info[kind] = info
 
     def setProperty(self, key, value):
         self.properties[key] = value
@@ -101,7 +158,7 @@ class _Addon:
     def getAddonInfo(self, name):
         return {
             "name": "DhakaFlix",
-            "version": "0.4.0",
+            "version": "0.5.0",
             "profile": self.values["profile"],
         }[name]
 
@@ -141,8 +198,10 @@ class KodiEntrypointTests(unittest.TestCase):
         self.items = []
         self.resolved = []
         self.end_calls = []
+        self.sort_calls = []
         self.notifications = []
         self.error_dialogs = []
+        self.builtins = []
         self.logs = []
         xbmc = types.ModuleType("xbmc")
         xbmc.Keyboard = _Keyboard
@@ -150,6 +209,7 @@ class KodiEntrypointTests(unittest.TestCase):
         xbmc.LOGWARNING = 2
         xbmc.LOGERROR = 3
         xbmc.log = lambda message, level=1: self.logs.append((message, level))
+        xbmc.executebuiltin = lambda command: self.builtins.append(command)
         xbmcaddon = types.ModuleType("xbmcaddon")
         xbmcaddon.Addon = _Addon
         xbmcgui = types.ModuleType("xbmcgui")
@@ -160,10 +220,27 @@ class KodiEntrypointTests(unittest.TestCase):
             ok=lambda *args: self.error_dialogs.append(args),
         )
         xbmcplugin = types.ModuleType("xbmcplugin")
+        xbmcplugin.SORT_METHOD_UNSORTED = 40
+        xbmcplugin.SORT_METHOD_LABEL_IGNORE_FOLDERS = 2
+        xbmcplugin.SORT_METHOD_DATEADDED = 21
         xbmcplugin.setContent = lambda *args: None
-        xbmcplugin.addDirectoryItem = lambda **kwargs: self.items.append(kwargs) or True
-        xbmcplugin.endOfDirectory = lambda *args, **kwargs: self.end_calls.append(
-            kwargs
+        xbmcplugin.addSortMethod = lambda handle, method: self.sort_calls.append(
+            (handle, method)
+        )
+        xbmcplugin.addDirectoryItems = (
+            lambda handle, items, total=0: self.items.extend(
+                {
+                    "handle": handle,
+                    "url": url,
+                    "listitem": item,
+                    "isFolder": is_folder,
+                }
+                for url, item, is_folder in items
+            )
+            or True
+        )
+        xbmcplugin.endOfDirectory = (
+            lambda handle, **kwargs: self.end_calls.append({"handle": handle, **kwargs})
         )
         xbmcplugin.setResolvedUrl = lambda *args: self.resolved.append(args)
         xbmcvfs = types.ModuleType("xbmcvfs")
@@ -182,27 +259,28 @@ class KodiEntrypointTests(unittest.TestCase):
     def tearDown(self):
         self.profile.cleanup()
 
-    def _invoke(self, query, node_urls=None):
-        argv = ["plugin://plugin.bdix.dhakaflix/", "1", query]
-        with mock.patch.object(sys, "argv", argv):
-            source_path = ADDON_DIR / "default.py"
-            spec = importlib.util.spec_from_file_location(
-                "dhakaflix_test_entry", source_path
-            )
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            if node_urls is not None:
-                setting_urls = {
-                    node["setting"]: node_urls.get(node_id, "")
-                    for node_id, node in module.NODES.items()
-                }
-                module.ADDON.getSetting = lambda name: setting_urls.get(
-                    name, _Addon.values.get(name, "")
-                )
-            module.main()
-            return module
+    def _load_module(self):
+        source_path = ADDON_DIR / "default.py"
+        spec = importlib.util.spec_from_file_location(
+            "dhakaflix_test_entry", source_path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.addCleanup(module.reset_runtime_state)
+        return module
 
-    def test_home_displays_multi_node_catalog_and_search(self):
+    def _invoke(self, query, node_urls=None, handle="1", module=None):
+        if node_urls is not None:
+            for node_id in ("7", "10", "12", "14"):
+                _Addon.values[f"server_{node_id}_url"] = node_urls.get(node_id, "")
+        argv = ["plugin://plugin.bdix.dhakaflix/", str(handle), query]
+        if module is None:
+            module = self._load_module()
+        with mock.patch.object(sys, "argv", argv):
+            module.main()
+        return module
+
+    def test_home_displays_navigation_search_and_cache_actions(self):
         self._invoke("")
         self.assertEqual(
             [item["listitem"].label for item in self.items],
@@ -211,14 +289,13 @@ class KodiEntrypointTests(unittest.TestCase):
                 "Movie categories",
                 "TV & series categories",
                 "Search movies",
-                "Search TV & series",
-                "Incremental library sync",
-                "Full library rescan",
+                "Clear listing cache",
                 "Add-on settings",
             ],
         )
         self.assertTrue(self.items[1]["url"].endswith("type=movie"))
         self.assertTrue(self.items[3]["url"].endswith("type=movie"))
+        self.assertTrue(self.items[4]["url"].endswith("action=clear_cache"))
         self.assertTrue(self.end_calls[-1]["succeeded"])
 
     def test_browse_route_lists_folders_and_playable_video(self):
@@ -229,15 +306,21 @@ class KodiEntrypointTests(unittest.TestCase):
         self.assertEqual(len(self.items), 2)
         self.assertEqual(
             [item["listitem"].label for item in self.items],
-            ["Folder", "Film.mkv"],
+            ["Folder", "Film (2026).mkv"],
         )
+        self.assertTrue(all(item["listitem"].offscreen for item in self.items))
         self.assertTrue(self.items[0]["isFolder"])
         self.assertFalse(self.items[1]["isFolder"])
+        self.assertEqual(self.items[1]["listitem"].label2, "1.4 GB")
+        self.assertEqual(self.items[1]["listitem"].video_tag.year, 2026)
+        self.assertEqual(self.items[1]["listitem"].video_tag.mediatype, "movie")
+        self.assertEqual(
+            self.items[1]["listitem"].video_tag.dateadded,
+            "2026-01-02 12:30:00",
+        )
         self.assertEqual(
             self.items[1]["listitem"].subtitles,
-            [
-                self.origin + "/Film.en.srt",
-            ],
+            [self.origin + "/Film%20(2026).en.srt"],
         )
         self.assertEqual(
             self.items[1]["listitem"].art["thumb"],
@@ -246,6 +329,7 @@ class KodiEntrypointTests(unittest.TestCase):
         self.assertIn("action=browse", self.items[0]["url"])
         self.assertIn("action=play", self.items[1]["url"])
         self.assertTrue(self.items[0]["listitem"].context_menu)
+        self.assertTrue(self.sort_calls)
         self.assertTrue(self.end_calls[-1]["succeeded"])
 
     def test_movie_catalog_routes_to_multiple_nodes(self):
@@ -271,48 +355,125 @@ class KodiEntrypointTests(unittest.TestCase):
             },
         )
         self.assertEqual(len(self.items), 1)
-        self.assertEqual(self.items[0]["listitem"].label, "Film.mkv")
+        self.assertEqual(self.items[0]["listitem"].label, "Film (2026).mkv")
+        self.assertEqual(self.items[0]["listitem"].label2, "1.0 GB")
         self.assertFalse(self.items[0]["isFolder"])
         self.assertIn("action=play", self.items[0]["url"])
         self.assertEqual(
-            self.items[0]["listitem"].info["video"]["studio"],
-            "DhakaFlix node 7",
+            self.items[0]["listitem"].video_tag.studios,
+            ["DhakaFlix node 7"],
         )
+        self.assertEqual(
+            self.items[0]["listitem"].context_menu[0][0],
+            "Open parent folder",
+        )
+        self.assertTrue(self.end_calls[-1]["cacheToDisc"])
 
-    def test_play_route_resolves_direct_media_url(self):
-        target = self.origin + "/film%20(2026).mkv"
+    def test_search_cancel_and_blank_query_do_not_open_empty_directory(self):
+        _Keyboard.confirmed = False
+        self._invoke("?action=search&type=movie")
+        self.assertFalse(self.end_calls[-1]["succeeded"])
+
+        _Keyboard.confirmed = True
+        _Keyboard.text = "   "
+        self.addCleanup(setattr, _Keyboard, "confirmed", False)
+        self.addCleanup(setattr, _Keyboard, "text", "")
+        self._invoke("?action=search&type=movie")
+        self.assertFalse(self.end_calls[-1]["succeeded"])
+
+    def test_play_route_resolves_direct_media_url_with_cached_subtitles_and_art(self):
+        _Addon.values["cache_ttl"] = "3600"
+        module = self._load_module()
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": self.origin + "/"}),
+            node_urls={key: self.origin + "/" for key in ("7", "10", "12", "14")},
+            handle="1",
+            module=module,
+        )
+        target = self.origin + "/film.mkv"
         self._invoke(
             "?" + urlencode({"action": "play", "url": target}),
-            node_urls={key: self.origin + "/" for key in ("7", "10", "12", "14")},
+            handle="2",
+            module=module,
         )
         self.assertEqual(len(self.resolved), 1)
         handle, succeeded, item = self.resolved[0]
-        self.assertEqual(handle, 1)
+        self.assertEqual(handle, 2)
         self.assertTrue(succeeded)
         self.assertEqual(item.path, target)
-        self.assertEqual(item.info["video"]["title"], "film (2026).mkv")
+        self.assertEqual(item.video_tag.title, "Film (2026)")
+        self.assertEqual(item.video_tag.year, 2026)
+        self.assertEqual(item.video_tag.mediatype, "movie")
+        self.assertEqual(item.video_tag.dateadded, "2026-01-02 12:30:00")
+        self.assertEqual(item.art["thumb"], self.origin + "/cover.jpg")
+        self.assertEqual(item.subtitles, [self.origin + "/Film%20(2026).en.srt"])
 
-    def test_manual_sync_route_queues_service_request(self):
-        self._invoke("?action=sync")
-        request_path = Path(self.profile.name) / "library" / "sync.request"
-        self.assertEqual(
-            request_path.read_text(encoding="ascii"),
-            "incremental\n",
+    def test_refresh_runplugin_invalidates_cache_and_refreshes_container(self):
+        _Addon.values["cache_ttl"] = "3600"
+        _Handler.requests = 0
+        module = self._load_module()
+        target = self.origin + "/folder/"
+        nodes = {key: self.origin + "/" for key in ("7", "10", "12", "14")}
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": target}),
+            node_urls=nodes,
+            handle="1",
+            module=module,
         )
-        self.assertTrue(self.end_calls[-1]["succeeded"])
+        self.assertEqual(_Handler.requests, 1)
 
-    def test_full_sync_route_queues_full_request(self):
-        self._invoke("?action=full_sync")
-        request_path = Path(self.profile.name) / "library" / "sync.request"
-        self.assertEqual(
-            request_path.read_text(encoding="ascii"),
-            "full\n",
+        self._invoke(
+            "?" + urlencode({"action": "refresh", "url": target}),
+            handle="-1",
+            module=module,
         )
-        self.assertTrue(self.end_calls[-1]["succeeded"])
+        self.assertEqual(self.builtins, ["Container.Refresh"])
+        self.assertEqual(len(self.end_calls), 1)
+
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": target}),
+            handle="2",
+            module=module,
+        )
+        self.assertEqual(_Handler.requests, 2)
+
+    def test_clear_cache_route_empties_cache_and_notifies(self):
+        _Addon.values["cache_ttl"] = "3600"
+        _Handler.requests = 0
+        module = self._load_module()
+        target = self.origin + "/cached/"
+        nodes = {key: self.origin + "/" for key in ("7", "10", "12", "14")}
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": target}),
+            node_urls=nodes,
+            handle="1",
+            module=module,
+        )
+        self._invoke("?action=clear_cache", handle="-1", module=module)
+        self.assertTrue(
+            any("Listing cache cleared" in note[1] for note in self.notifications)
+        )
+        self._invoke(
+            "?" + urlencode({"action": "browse", "url": target}),
+            handle="2",
+            module=module,
+        )
+        self.assertEqual(_Handler.requests, 2)
+
+    def test_reuselanguageinvoker_handles_repeated_main_calls_with_new_handles(self):
+        module = self._load_module()
+        self._invoke("", handle="10", module=module)
+        self.assertEqual(self.items[0]["handle"], 10)
+        self.assertEqual(self.end_calls[-1]["handle"], 10)
+
+        self.items.clear()
+        self._invoke("?action=catalog&type=movie", handle="11", module=module)
+        self.assertEqual(self.items[0]["handle"], 11)
+        self.assertEqual(self.end_calls[-1]["handle"], 11)
 
     def test_portal_url_stays_fixed_while_nodes_are_configurable(self):
         module = self._invoke("")
-        origin_url, _, _, _, node_urls = module._settings()
+        origin_url, _, _, _, node_urls = module._settings(module.xbmcaddon.Addon("id"))
 
         self.assertEqual(origin_url, "http://172.16.50.7/")
         self.assertEqual(
@@ -335,7 +496,7 @@ class KodiEntrypointTests(unittest.TestCase):
                 "14": "",
             },
         )
-        origin_url, _, _, _, node_urls = module._settings()
+        origin_url, _, _, _, node_urls = module._settings(module.xbmcaddon.Addon("id"))
 
         self.assertEqual(origin_url, "http://172.16.50.7/")
         self.assertEqual(

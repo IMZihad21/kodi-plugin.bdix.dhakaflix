@@ -32,6 +32,10 @@ msgctxt "#30008"
 msgid "Maximum wait for a directory page response."
 msgstr ""
 
+msgctxt "#30009"
+msgid "DhakaFlix servers"
+msgstr ""
+
 msgctxt "#30010"
 msgid "DhakaFlix node 7 URL"
 msgstr ""
@@ -52,26 +56,6 @@ msgctxt "#30014"
 msgid "Base URL for this DhakaFlix node. Leave blank to disable its categories and search."
 msgstr ""
 
-msgctxt "#30015"
-msgid "Sync"
-msgstr ""
-
 msgctxt "#30018"
 msgid "Discovery"
-msgstr ""
-
-msgctxt "#30019"
-msgid "Sync movies"
-msgstr ""
-
-msgctxt "#30020"
-msgid "Include movie categories in library synchronization."
-msgstr ""
-
-msgctxt "#30021"
-msgid "Sync TV series"
-msgstr ""
-
-msgctxt "#30022"
-msgid "Include TV, anime, and series categories in library synchronization."
 msgstr ""

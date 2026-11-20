@@ -44,9 +44,14 @@ class CatalogTests(unittest.TestCase):
 
     def test_search_nodes_follow_supported_media_types(self):
         self.assertEqual(
-            [node_id for node_id, _, _ in search_nodes("series", self.nodes)],
-            ["10", "12", "14"],
+            [node_id for node_id, _, _ in search_nodes("movie", self.nodes)],
+            ["7", "14"],
         )
+
+    def test_search_rejects_non_movie_types(self):
+        for media_type in ("series", "all"):
+            with self.subTest(media_type=media_type), self.assertRaises(ValueError):
+                search_nodes(media_type, self.nodes)
 
     def test_portal_and_node_urls_are_fixed(self):
         self.assertEqual(PORTAL_URL, "http://172.16.50.7/")
